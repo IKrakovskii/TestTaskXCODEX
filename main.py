@@ -42,8 +42,8 @@ class PinStates(StatesGroup):
 @logger.catch
 async def cmd_start(message: types.Message):
     if is_private(message):
-        await message.answer("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
-                             "сообщений /add_pin_message")
+        await message.reply("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
+                            "сообщений /add_pin_message")
 
 
 # начальная функция для закрепления сообщения если человек не проходит проверку на админа, она не запускает туннель
@@ -61,14 +61,7 @@ async def start_pin_message(message: types.Message, state: FSMContext):
 @form_router.message(PinStates.waiting_for_message_link)
 @logger.catch
 async def get_chat_link(message: types.Message, state: FSMContext):
-    data = str(message.text).split('/')
-    try:
-        chat_id, message_id = f'-100{data[-2]}', data[-1]
-    except IndexError:
-        await message.reply('Неправильная ссылка')
-        return
-    save_key_value(key=f'{message.chat.id}_chat_id', value=chat_id)
-    save_key_value(key=f'{message.chat.id}_message_id', value=message_id)
+    save_key_value(key=f'{message.chat.id}_message_link', value=message.text)
     await message.reply('Теперь отправь мне время, на которое нужно закрепить(в минутах)')
     await state.set_state(PinStates.waiting_for_timer)
 
@@ -77,9 +70,8 @@ async def get_chat_link(message: types.Message, state: FSMContext):
 @form_router.message(PinStates.waiting_for_timer)
 @logger.catch
 async def get_timer(message: types.Message, state: FSMContext):
-    chat_id = get_data_from_key(f'{message.chat.id}_chat_id')
-    message_id = get_data_from_key(f'{message.chat.id}_message_id')
-
+    data = get_data_from_key(f'{message.chat.id}_message_link').split('/')
+    chat_id, message_id = f'-100{data[-2]}', data[-1]
     try:
         chat_id = int(chat_id)
     except ValueError:
