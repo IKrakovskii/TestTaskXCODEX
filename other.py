@@ -1,7 +1,7 @@
 import dbm
 import shelve
 
-db = dbm.open('cache.db', 'c')
+db = dbm.open('Database/cache.db', 'c')
 shelf = shelve.Shelf(db)
 
 

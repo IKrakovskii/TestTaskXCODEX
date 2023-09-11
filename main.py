@@ -1,7 +1,5 @@
 import asyncio
 
-from aiogram.types import MessageEntity
-
 from CONFIG import *
 from loguru import logger
 from aiogram import Bot, Dispatcher, types, Router
@@ -25,10 +23,8 @@ dp.include_router(form_router)
 # Проверка на админа
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
-        logger.debug('list')
         return str(message.from_user.id) in ADMIN_TG_USER_ID
     elif type(ADMIN_TG_USER_ID) is str:
-        logger.debug('str')
         return str(message.from_user.id) == ADMIN_TG_USER_ID
 
 
@@ -56,6 +52,9 @@ async def cmd_start(message: types.Message):
 @logger.catch
 async def start_pin_message(message: types.Message, state: FSMContext):
     if is_admin(message) and is_private(message):
+        if get_data_from_key(f'{message.chat.id}_message_pin'):
+            await message.answer('Вы уже закрепили одно сообщение')
+            return
         await message.reply('Отправь мне ссылку на сообщение')
         await state.set_state(PinStates.waiting_for_message_link)
     else:
@@ -75,8 +74,18 @@ async def get_chat_link(message: types.Message, state: FSMContext):
 @form_router.message(PinStates.waiting_for_timer)
 @logger.catch
 async def get_timer(message: types.Message, state: FSMContext):
-    data = get_data_from_key(f'{message.chat.id}_message_link').split('/')
-    chat_id, message_id = f'-100{data[-2]}', data[-1]
+    logger.debug('Я работаю')
+    url = get_data_from_key(f'{message.chat.id}_message_link')
+    data = url.split('/')
+    if len(data) < 2:
+        await message.reply('неправильная ссылка!')
+        return
+    try:
+        chat_id, message_id = f'-100{data[-2]}', data[-1]
+    except IndexError:
+        await message.reply('Неправильная ссылка')
+        return
+
     try:
         chat_id = int(chat_id)
     except ValueError:
@@ -87,21 +96,37 @@ async def get_timer(message: types.Message, state: FSMContext):
     delete_by_key(f'{message.chat.id}_message_link')
     timer = message.text
     await state.clear()
+    save_key_value(key=f'{message.chat.id}_message_pin', value=url)
+
     r = await pin_unpin_message(
         chat_id=chat_id,
         message_id=message_id,
         timer=timer,
-        id_for_positive_request=message.chat.id
+        id_for_positive_request=message.chat.id,
+        message=message
     )
     if r:
         await bot.send_message(message.from_user.id, 'Произошла ошибка, бот не состоит в этом чате или не является '
                                                      'администратором')
 
 
+# завершение закрепления сообщения
+@form_router.message(Command('stop'))
+@logger.catch
+async def stop_pin(message: types.Message):
+    delete_by_key(f'{message.chat.id}_message_pin')
+    await message.answer('Сообщение перестало закрепляться')
+
+
 # закрепляет сообщение на определённый срок(в минутах)
 @logger.catch
-async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request):
-    try:
+async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request, message):
+    # цикличное закрепление
+    while True:
+        logger.debug('Я запустился')
+        logger.debug(f"{get_data_from_key(f'{message.chat.id}_message_pin')}")
+        if not get_data_from_key(f'{message.chat.id}_message_pin'):
+            break
         await bot.pin_chat_message(
             message_id=message_id,
             chat_id=chat_id,
@@ -113,9 +138,7 @@ async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request)
             message_id=message_id,
             chat_id=chat_id
         )
-        return False
-    except:
-        return True
+        await asyncio.sleep(10)
 
 
 # Для ответа на незапланированные сценарии
