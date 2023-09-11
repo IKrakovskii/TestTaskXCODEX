@@ -4,13 +4,10 @@ import shelve
 import sqlite3
 import threading
 import time
-from typing import List
-
 from aiogram import Bot
 from loguru import logger
 from CONFIG import TOKEN
 
-bot = Bot(token=TOKEN)
 # region конфиг для логирования
 logger.add(
     'logs/logs.log',
@@ -48,6 +45,7 @@ def delete_by_key(key):
 class Database:
     @logger.catch
     def __init__(self):
+        self.bot = Bot(token=TOKEN)
         self.conn = sqlite3.connect('Database/urls.sqlite3')
         self.cur = self.conn.cursor()
         self.lock = threading.Lock()
@@ -87,7 +85,7 @@ class Database:
         self.conn.commit()
 
     @logger.catch
-    def get_all_urls(self) -> List[dict]:
+    async def get_all_urls(self):
         """
         :return: [{'url': str, 'timer': int}]
         """
@@ -95,45 +93,98 @@ class Database:
         rows = self.cur.fetchall()
         out_lst = []
         for row in rows:
-            out_lst.append({'url': row[1], 'timer': row[2], 'time': row[3]})
-        return out_lst
+            # out_lst.append({'url': row[1], 'timer': row[2], 'time': row[3]})
+            yield {'url': row[1], 'timer': row[2], 'time': row[3]}
+        # return out_lst
 
 
 # endregion
 
 # region добавление ссылки в очередь
+
+
 class Queue(Database):
-    @staticmethod
-    @logger.catch
-    async def pin_message(bot, message_id, chat_id, timer):
-        try:
-            r = await bot.pin_chat_message(
-                message_id=message_id,
-                chat_id=chat_id,
-                disable_notification=True
-            )
-            logger.info(f'результат закрепления сообщения: {message_id} {r}')
-            await asyncio.sleep(timer * 60 + 1)
-            r = await bot.unpin_chat_message(
-                message_id=message_id,
-                chat_id=chat_id
-            )
-            logger.info(f'результат открепления сообщения: {message_id} {r}')
-            return False
-        except Exception as e:
-            logger.error(e)
-            return True
+
+    async def pin_message(self, message_id, chat_id, timer, url):
+        # print("Pinning message...")
+        #
+        # await self.bot.pin_chat_message(message_id=message_id, chat_id=chat_id)
+        # # self.update_time_by_url(url)
+        # self.cur.execute("SELECT id, timer FROM urls WHERE url=?", (url,))
+        # row = self.cur.fetchone()
+        # url_id, timer = row
+        # new_time = int(time.time() + timer * 60 + 5)
+        # self.cur.execute("UPDATE urls SET time=? WHERE id=?", (new_time, url_id))
+        # self.conn.commit()
+        # await asyncio.sleep(timer * 60)
+        #
+        # await self.bot.unpin_chat_message(message_id=message_id, chat_id=chat_id)
+        conn = sqlite3.connect('Database/urls.sqlite3')
+        cur = conn.cursor()
+
+        await self.bot.pin_chat_message(message_id=message_id, chat_id=chat_id)
+
+        cur.execute("SELECT id, timer FROM urls WHERE url=?", (url,))
+        row = cur.fetchone()
+        url_id, timer = row
+        new_time = int(time.time() + timer * 60 + 5)
+        cur.execute("UPDATE urls SET time=? WHERE id=?", (new_time, url_id))
+        conn.commit()
+
+        await asyncio.sleep(timer * 60)
+
+        await self.bot.unpin_chat_message(message_id=message_id, chat_id=chat_id)
+
+        cur.close()
+        conn.close()
+
+    def pin_in_thread(self, message_id, chat_id, timer, url):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        t = threading.Thread(target=loop.run_until_complete,
+                             args=(self.pin_message(message_id, chat_id, timer, url),))
+        t.start()
+
+        t.join()
+        loop.close()
+
+    # @staticmethod
+    # @logger.catch
+    # async def pin_message(bot, message_id, chat_id, timer):
+    #
+    #     logger.info('сообщение закрепляется...')
+    #     await bot.pin_chat_message(
+    #         message_id=message_id,
+    #         chat_id=chat_id,
+    #         disable_notification=True
+    #     )
+    #     await asyncio.sleep(timer * 60)
+    #     logger.info(f'Сообщение открепляется...')
+    #     await bot.unpin_chat_message(
+    #         message_id=message_id,
+    #         chat_id=chat_id
+    #     )
+    #     await asyncio.sleep(2)
+    #     await bot.pin_chat_message(
+    #         message_id=message_id,
+    #         chat_id=chat_id,
+    #         disable_notification=True
+    #     )
 
     @logger.catch
-    async def cyclic_consolidation(self, bot):
+    async def cyclic_consolidation(self):
         while True:
-            for i in self.get_all_urls():
+            async for i in self.get_all_urls():
                 url, timer, time_to_send = i['url'], i['timer'], i['time']
                 # print(url)
                 # print(time_to_send)
                 # print(int(time.time()))
                 if int(time_to_send) + 1 >= int(time.time()):
                     continue
+                print(url)
+                print(time_to_send)
+                print(int(time.time()))
                 logger.debug(f'пошло закрепляться сообщение{url}')
                 data = url.split('/')
                 chat_id, message_id = f'-100{data[-2]}', data[-1]
@@ -147,14 +198,17 @@ class Queue(Database):
                 logger.debug('Закрепляю сообщение')
                 logger.debug(f'{time_to_send=}')
                 logger.debug(f'{time.time()=}')
-                await self.pin_message(bot, message_id, chat_id, timer)
-                self.update_time_by_url(url=url)
-                logger.debug(f'Сообщение {url} закреплено\n')
+                tm = time.time()
 
+                # asyncio.create_task(await self.pin_message(bot, message_id, chat_id, timer))
+                self.pin_in_thread(chat_id=chat_id, message_id=message_id, timer=timer, url=url)
+                # await asyncio.sleep(timer*60)
+                logger.info(f'Сообщения закреплялось {round((time.time() - tm), 4)} секунд')
+                logger.debug(f'Сообщение {url} закреплено\n')
 
 # end region
 
 if __name__ == '__main__':
     logger.info('Функция по закрепу сообщений, начала работу')
     Q = Queue()
-    asyncio.run(Q.cyclic_consolidation(bot))
+    asyncio.run(Q.cyclic_consolidation())
