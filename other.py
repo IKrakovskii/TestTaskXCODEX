@@ -81,7 +81,7 @@ class Database:
         self.cur.execute("SELECT id, timer FROM urls WHERE url=?", (url,))
         row = self.cur.fetchone()
         url_id, timer = row
-        new_time = int(time.time() + timer * 60)
+        new_time = int(time.time() + timer * 60 + 5)
         self.cur.execute("UPDATE urls SET time=? WHERE id=?",
                          (new_time, url_id))
         self.conn.commit()
@@ -107,19 +107,21 @@ class Queue(Database):
     @logger.catch
     async def pin_message(bot, message_id, chat_id, timer):
         try:
-            await bot.pin_chat_message(
+            r = await bot.pin_chat_message(
                 message_id=message_id,
                 chat_id=chat_id,
                 disable_notification=True
             )
-            await asyncio.sleep(int(timer)*60)
-            await bot.unpin_chat_message(
+            logger.info(f'результат закрепления сообщения: {message_id} {r}')
+            await asyncio.sleep(timer * 60 + 1)
+            r = await bot.unpin_chat_message(
                 message_id=message_id,
                 chat_id=chat_id
             )
-            await asyncio.sleep(1)
+            logger.info(f'результат открепления сообщения: {message_id} {r}')
             return False
-        except:
+        except Exception as e:
+            logger.error(e)
             return True
 
     @logger.catch
@@ -132,7 +134,7 @@ class Queue(Database):
                 # print(int(time.time()))
                 if int(time_to_send) + 1 >= int(time.time()):
                     continue
-                logger.debug(f'пошло закрепляться сообщение\n{url}')
+                logger.debug(f'пошло закрепляться сообщение{url}')
                 data = url.split('/')
                 chat_id, message_id = f'-100{data[-2]}', data[-1]
                 try:
@@ -145,10 +147,9 @@ class Queue(Database):
                 logger.debug('Закрепляю сообщение')
                 logger.debug(f'{time_to_send=}')
                 logger.debug(f'{time.time()=}')
+                await self.pin_message(bot, message_id, chat_id, timer)
                 self.update_time_by_url(url=url)
-                asyncio.create_task(self.pin_message(bot, message_id, chat_id, timer))
-                await asyncio.sleep(1)
-                logger.debug(f'Сообщение {url} закреплено')
+                logger.debug(f'Сообщение {url} закреплено\n')
 
 
 # end region
