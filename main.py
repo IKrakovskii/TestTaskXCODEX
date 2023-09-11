@@ -24,7 +24,12 @@ dp.include_router(form_router)
 
 # Проверка на админа
 def is_admin(message: types.Message):
-    return str(message.from_user.id) == ADMIN_TG_USER_ID
+    if type(ADMIN_TG_USER_ID) is list:
+        logger.debug('list')
+        return str(message.from_user.id) in ADMIN_TG_USER_ID
+    elif type(ADMIN_TG_USER_ID) is str:
+        logger.debug('str')
+        return str(message.from_user.id) == ADMIN_TG_USER_ID
 
 
 def is_private(message: types.Message):
