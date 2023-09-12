@@ -162,12 +162,10 @@ async def get_message(message: types.Message, state: FSMContext):
 @form_router.message()
 @logger.catch
 async def other(message: types.Message, teg_5_in_tuple: tuple):
-    # if message.chat.type == 'private':
-    #     await message.reply('Команда не распознана')
-    # await bot.copy_message(chat_id=message.chat.id, from_chat_id=message.chat.id, message_id=message.message_id)
-    # await message.model_copy(update=(message.text+'@ivkrak'))
-    logger.info(f'{message=}')
-    teg1, teg2, teg3, teg4, teg5 = teg_5_in_tuple
+    message_caption_text = ''  # str
+    message_photo = ''  # str
+
+
     await bot.send_photo(
         chat_id=message.chat.id,
         photo=message.photo[0].file_id,

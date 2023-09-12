@@ -29,11 +29,15 @@ def delete_by_key(key):
     shelf.pop(key)
 
 
-# def get_group_array():
-#     if shelf_arr.get('groups_array') is None:
-#         shelf_arr['groups_array'] = []
-#     return shelf_arr.get('groups_array')
-#
-#
-# def update_group_array(new_value):
-#     shelf_arr['groups_array'] = new_value
+'''
+невидимые теги
+
+await bot.send_photo(
+        chat_id=message.chat.id,
+        photo=message.photo[0].file_id,
+        caption=f'{message.caption if message.text is None else message.text}'
+                f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+        parse_mode='Markdown'
+    )
+
+'''
