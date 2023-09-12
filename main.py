@@ -1,18 +1,11 @@
 import asyncio
 
 from CONFIG import *
-from loguru import logger
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from other import *
-
-logger.add(
-    'logs/logs.log',
-    format='{time} {level} {message}',
-    level='DEBUG'
-)
 
 form_router = Router()
 bot = Bot(token=TOKEN)
@@ -36,6 +29,13 @@ def is_private(message: types.Message):
 class PinStates(StatesGroup):
     waiting_for_message_link = State()
     waiting_for_timer = State()
+
+
+class GetGroupStates(StatesGroup):
+    start_get_group = State()
+    waiting_for_group_link = State()
+    get_message = State()
+    will_tags_be_used = State()
 
 
 # стартовая функция(доступна всем)
@@ -74,7 +74,6 @@ async def get_chat_link(message: types.Message, state: FSMContext):
 @form_router.message(PinStates.waiting_for_timer)
 @logger.catch
 async def get_timer(message: types.Message, state: FSMContext):
-    logger.debug('Я работаю')
     url = get_data_from_key(f'{message.chat.id}_message_link')
     data = url.split('/')
     if len(data) < 2:
@@ -123,8 +122,7 @@ async def stop_pin(message: types.Message):
 async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request, message):
     # цикличное закрепление
     while True:
-        logger.debug('Я запустился')
-        logger.debug(f"{get_data_from_key(f'{message.chat.id}_message_pin')}")
+
         if not get_data_from_key(f'{message.chat.id}_message_pin'):
             break
         await bot.pin_chat_message(
@@ -132,7 +130,6 @@ async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request,
             chat_id=chat_id,
             disable_notification=False
         )
-        await bot.send_message(id_for_positive_request, f'Сообщение закреплено на {timer} минут')
         await asyncio.sleep(int(timer) * 60)
         await bot.unpin_chat_message(
             message_id=message_id,
@@ -141,16 +138,52 @@ async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request,
         await asyncio.sleep(10)
 
 
+@form_router.message(Command('add_group'), GetGroupStates.start_get_group)
+@logger.catch
+async def add_group(message: types.Message, state: FSMContext):
+    await message.answer('Добавьте меня в группу и отправьте мне ссылку на группу')
+    await state.set_state(GetGroupStates.waiting_for_group_link)
+
+
+@form_router.message(GetGroupStates.waiting_for_group_link)
+@logger.catch
+async def get_group_link(message: types.Message, state: FSMContext):
+    save_key_value(key='group', value=message.text)
+    await state.set_state(GetGroupStates.get_message)
+
+
+@form_router.message(GetGroupStates.get_message)
+@logger.catch
+async def get_message(message: types.Message, state: FSMContext):
+    save_key_value(key='message', value=message)
+
+
 # Для ответа на незапланированные сценарии
 @form_router.message()
 @logger.catch
-async def other(message: types.Message):
-    if message.chat.type == 'private':
-        await message.reply('Команда не распознана')
-
+async def other(message: types.Message, teg_5_in_tuple: tuple):
+    # if message.chat.type == 'private':
+    #     await message.reply('Команда не распознана')
+    # await bot.copy_message(chat_id=message.chat.id, from_chat_id=message.chat.id, message_id=message.message_id)
+    # await message.model_copy(update=(message.text+'@ivkrak'))
+    logger.info(f'{message=}')
+    teg1, teg2, teg3, teg4, teg5 = teg_5_in_tuple
+    await bot.send_photo(
+        chat_id=message.chat.id,
+        photo=message.photo[0].file_id,
+        caption=f'{message.caption if message.text is None else message.text}'
+                f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+        parse_mode='Markdown'
+    )
+    # " ᅠ "
+    # await message.send_copy(chat_id=message.chat.id)
 
 # region запуск бота
 async def main():
+    # if get_data_from_key('groups'):
+    #     save_key_value(key='groups', value=[])
+    # if get_data_from_key('message'):
+    #     save_key_value(key='message', value=[])
     await dp.start_polling(bot)
 
 
