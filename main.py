@@ -1,4 +1,7 @@
 import asyncio
+import os
+import random
+from types import NoneType
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
@@ -144,7 +147,7 @@ async def pin_unpin_message(chat_id, message_id, timer, message):
 @form_router.message(Command('add_tagged_message'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
-    await message.answer('Добавьте меня в группу и отправьте мне ссылку на любое сообщение')
+    await message.answer('Добавьте меня в группу и отправьте мне ссылку на любое сообщение из этой группы')
     await state.set_state(GetGroupStates.waiting_for_group_link)
 
 
@@ -177,7 +180,7 @@ async def get_group_link(message: types.Message, state: FSMContext):
 @form_router.message(GetGroupStates.get_message)
 @logger.catch
 async def get_message(message: types.Message, state: FSMContext):
-    save_key_value('caption_text', value=message.text)
+    save_key_value('caption_text', value=message.caption if message.caption is not None else message.text)
     try:
         save_key_value('message_photo', value=message.photo[0].file_id)
     except TypeError:
@@ -195,12 +198,7 @@ async def get_message(message: types.Message, state: FSMContext):
         one_time_keyboard=True,
         input_field_placeholder='Нужно тегать людей?'
     )
-    # kb.button('✅Да')
-    # kb.button('❌нет')
-    # kb.adjust(2, 1)
-    # kb.add(KeyboardButton('✅Да'))
-    # kb.add(KeyboardButton('❌нет'))
-    await message.answer('Сообщение принято', reply_markup=keyboard)
+    await message.answer('Сообщение принято, будем тегать?', reply_markup=keyboard)
     await state.set_state(GetGroupStates.will_pin_be_used)
 
 
@@ -208,7 +206,8 @@ async def get_message(message: types.Message, state: FSMContext):
 @logger.catch
 async def will_teg_be_used(message: types.Message, state: FSMContext):
     if message.text == '✅Да':
-        save_key_value('will_teg_be_used", value=', value=True)
+        save_key_value('will_teg_be_used', value=True)
+        await get_members_usernames(get_data_from_key('group_id'))
     elif message.text == '❌нет':
         save_key_value('will_teg_be_used', value=False)
     await message.answer('Отправь время, через которое нужно перезакреплять сообщения( в минутах). \n\n'
@@ -220,29 +219,64 @@ async def will_teg_be_used(message: types.Message, state: FSMContext):
 @form_router.message(GetGroupStates.timer)
 @logger.catch
 async def timer(message: types.Message, state: FSMContext):
-    save_key_value('timer', value=float(message.text))
+    try:
+        save_key_value('timer', value=float(message.text))
+    except ValueError:
+        await message.answer('Вы неправильно напечатали число\n\n'
+                             'Отправь время, через которое нужно перезакреплять сообщения( в минутах). \n\n'
+                             'Можно написать целое число или через точку, например, 0.5')
+        await state.set_state(GetGroupStates.will_pin_be_used)
+        return
     await message.answer('Начинаю цикличное перезакрепление сообщения. \n\n'
                          'Для завершения напишите /stop_tagged')
     await state.clear()
-    if get_data_from_key(will_teg_be_used):
-        tegs = (1, 2, 3, 4, 5)
-    else:
-        tegs = ('https://google.com/' for _ in range(5))
 
+    save_key_value(f'{get_data_from_key("group_id")}_stop_tagged', 'True')
+    r = await infinity_tags(get_data_from_key('group_id'))
+
+
+@form_router.message(Command('stop_tagged'))
+@logger.catch
+async def stop_tagged(message: types.Message):
+    delete_by_key(f'{get_data_from_key("group_id")}_stop_tagged')
+
+
+@logger.catch
+async def infinity_tags(chat_id):
     while True:
+        if get_data_from_key('will_teg_be_used'):
+            members_usernames = get_data_from_key('members_usernames')
+            tegs = tuple(random.sample(members_usernames, 5))
+            # logger.debug(f'{tegs=}')
+
+        else:
+            tegs = ['1' for i in range(5)]
+        if not get_data_from_key(f'{chat_id}_stop_tagged'):
+            break
         await send_message_with_tags(tegs)
-        await bot.pin_chat_message(
+        r = await bot.pin_chat_message(
             chat_id=get_data_from_key('group_id'),
             message_id=get_data_from_key('message_id_from_pin')
         )
-        await asyncio.sleep(get_data_from_key('timer'))
+        await asyncio.sleep(get_data_from_key('timer') * 60)
         await bot.delete_message(
             chat_id=get_data_from_key('group_id'),
             message_id=get_data_from_key('message_id_from_pin'))
+    await bot.send_message(chat_id=chat_id, text='Цикличное закрепление с тегированием завершено')
 
 
 @logger.catch
 async def send_message_with_tags(teg_5_in_tuple):
+
+    if len(teg_5_in_tuple) < 5:
+        teg = teg_5_in_tuple
+        for i in range(5-len(teg_5_in_tuple)):
+            teg.append('1')
+        teg_5_in_tuple = teg
+
+
+
+
     teg1, teg2, teg3, teg4, teg5 = teg_5_in_tuple
     if get_data_from_key('message_photo'):
         msg = await bot.send_photo(
@@ -271,20 +305,36 @@ async def send_message_with_tags(teg_5_in_tuple):
 async def other(message: types.Message):
     if message.chat.type == 'private':
         await message.reply('Команда не распознана')
-
-    await bot.get_users()
+    else:
+        if message.pinned_message and message.from_user.username == (await bot.get_me()).username:
+            await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+            # print(message)
 
 
 # region запуск бота
+def build_session():
+    if os.path.exists('my_bot.session') > 0:
+        print('Сессия существует')
+    else:
+        print('Введите данные')
+        api_id = input('API_ID - ')
+        api_hash = input('API_HASH - ')
+
+        async def start(api_id, api_hash):
+            app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
+            await app.start()
+            await app.get_me()
+            await app.stop()
+
+        asyncio.run(start(api_id=api_id, api_hash=api_hash))
+
+
 async def main():
-    # if get_data_from_key('groups'):
-    #     save_key_value(key='groups', value=[])
-    # if get_data_from_key('message'):
-    #     save_key_value(key='message', value=[])
     await dp.start_polling(bot)
 
 
 if __name__ == '__main__':
+    build_session()
     logger.info('Бот запущен')
     asyncio.run(main())
 
