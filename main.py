@@ -1,5 +1,7 @@
 import asyncio
 
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+
 from CONFIG import *
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.context import FSMContext
@@ -35,7 +37,8 @@ class GetGroupStates(StatesGroup):
     start_get_group = State()
     waiting_for_group_link = State()
     get_message = State()
-    will_tags_be_used = State()
+    will_pin_be_used = State()
+    timer = State()
 
 
 # стартовая функция(доступна всем)
@@ -119,7 +122,7 @@ async def stop_pin(message: types.Message):
 
 # закрепляет сообщение на определённый срок(в минутах)
 @logger.catch
-async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request, message):
+async def pin_unpin_message(chat_id, message_id, timer, message):
     # цикличное закрепление
     while True:
 
@@ -138,43 +141,139 @@ async def pin_unpin_message(chat_id, message_id, timer, id_for_positive_request,
         await asyncio.sleep(10)
 
 
-@form_router.message(Command('add_group'), GetGroupStates.start_get_group)
+@form_router.message(Command('add_tagged_message'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
-    await message.answer('Добавьте меня в группу и отправьте мне ссылку на группу')
+    await message.answer('Добавьте меня в группу и отправьте мне ссылку на любое сообщение')
     await state.set_state(GetGroupStates.waiting_for_group_link)
 
 
 @form_router.message(GetGroupStates.waiting_for_group_link)
 @logger.catch
 async def get_group_link(message: types.Message, state: FSMContext):
-    save_key_value(key='group', value=message.text)
+    data = message.text.split('/')
+    if len(data) < 2:
+        await message.reply('неправильная ссылка!')
+        return
+    try:
+        chat_id, message_id = f'-100{data[-2]}', data[-1]
+    except IndexError:
+        await message.reply('Неправильная ссылка')
+        return
+
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        chat_id = f"@{chat_id.replace('-100', '')}"
+    except Exception as e:
+        logger.error(e)
+        await message.answer('Неправильная ссылка')
+
+    save_key_value(key='group_id', value=chat_id)
+    await message.answer('Ссылка принята. Теперь отправь мне сообщение, которое нужно перезакреплять')
     await state.set_state(GetGroupStates.get_message)
 
 
 @form_router.message(GetGroupStates.get_message)
 @logger.catch
 async def get_message(message: types.Message, state: FSMContext):
-    save_key_value(key='message', value=message)
+    save_key_value('caption_text', value=message.text)
+    try:
+        save_key_value('message_photo', value=message.photo[0].file_id)
+    except TypeError:
+        save_key_value('message_photo', value=None)
+
+    kb = [
+        [
+            KeyboardButton(text='✅Да'),
+            KeyboardButton(text='❌нет')
+        ]
+    ]
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder='Нужно тегать людей?'
+    )
+    # kb.button('✅Да')
+    # kb.button('❌нет')
+    # kb.adjust(2, 1)
+    # kb.add(KeyboardButton('✅Да'))
+    # kb.add(KeyboardButton('❌нет'))
+    await message.answer('Сообщение принято', reply_markup=keyboard)
+    await state.set_state(GetGroupStates.will_pin_be_used)
+
+
+@form_router.message(GetGroupStates.will_pin_be_used)
+@logger.catch
+async def will_teg_be_used(message: types.Message, state: FSMContext):
+    if message.text == '✅Да':
+        save_key_value('will_teg_be_used", value=', value=True)
+    elif message.text == '❌нет':
+        save_key_value('will_teg_be_used', value=False)
+    await message.answer('Отправь время, через которое нужно перезакреплять сообщения( в минутах). \n\n'
+                         'Можно написать целое число или через точку, например, 0.5',
+                         reply_markup=ReplyKeyboardRemove())
+    await state.set_state(GetGroupStates.timer)
+
+
+@form_router.message(GetGroupStates.timer)
+@logger.catch
+async def timer(message: types.Message, state: FSMContext):
+    save_key_value('timer', value=float(message.text))
+    await message.answer('Начинаю цикличное перезакрепление сообщения. \n\n'
+                         'Для завершения напишите /stop_tagged')
+    await state.clear()
+    if get_data_from_key(will_teg_be_used):
+        tegs = (1, 2, 3, 4, 5)
+    else:
+        tegs = ('https://google.com/' for _ in range(5))
+
+    while True:
+        await send_message_with_tags(tegs)
+        await bot.pin_chat_message(
+            chat_id=get_data_from_key('group_id'),
+            message_id=get_data_from_key('message_id_from_pin')
+        )
+        await asyncio.sleep(get_data_from_key('timer'))
+        await bot.delete_message(
+            chat_id=get_data_from_key('group_id'),
+            message_id=get_data_from_key('message_id_from_pin'))
+
+
+@logger.catch
+async def send_message_with_tags(teg_5_in_tuple):
+    teg1, teg2, teg3, teg4, teg5 = teg_5_in_tuple
+    if get_data_from_key('message_photo'):
+        msg = await bot.send_photo(
+            chat_id=get_data_from_key('group_id'),
+            photo=get_data_from_key('message_photo'),
+            caption=f'{get_data_from_key("caption_text")}'
+                    f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+            parse_mode='Markdown',
+            disable_notification=True
+        )
+        save_key_value(key=f'message_id_from_pin', value=msg.message_id)
+    else:
+        msg = await bot.send_message(
+            chat_id=get_data_from_key('group_id'),
+            text=f'{get_data_from_key("caption_text")}'
+                 f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+            parse_mode='Markdown',
+            disable_notification=True
+        )
+        save_key_value(key=f'message_id_from_pin', value=msg.message_id)
 
 
 # Для ответа на незапланированные сценарии
 @form_router.message()
 @logger.catch
-async def other(message: types.Message, teg_5_in_tuple: tuple):
-    message_caption_text = ''  # str
-    message_photo = ''  # str
+async def other(message: types.Message):
+    if message.chat.type == 'private':
+        await message.reply('Команда не распознана')
 
+    await bot.get_users()
 
-    await bot.send_photo(
-        chat_id=message.chat.id,
-        photo=message.photo[0].file_id,
-        caption=f'{message.caption if message.text is None else message.text}'
-                f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
-        parse_mode='Markdown'
-    )
-    # " ᅠ "
-    # await message.send_copy(chat_id=message.chat.id)
 
 # region запуск бота
 async def main():

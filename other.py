@@ -1,4 +1,3 @@
-import dbm
 import shelve
 from loguru import logger
 
