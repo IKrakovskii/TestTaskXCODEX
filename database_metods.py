@@ -71,7 +71,32 @@ class Database:
                      delete_previous_messages, will_add_tags, amount_of_tags, tag_everyone,
                      currently_in_use, group_id))
 
+    def get_all_groups(self):
+        with self.lock:
+            rows = self.conn.execute("SELECT * FROM groups").fetchall()
 
-# INSERT INTO groups (group_id, group_name, lock)
-db = Database()
-db.joined_a_group(group_id=1234, group_name='Саня гей')
+        groups = []
+        for row in rows:
+            group = {
+                "group_id": row[0],
+                "currently_in_use": row[1],
+                "group_name": row[2],
+                "message_text": row[3],
+                "message_photo_id": row[4],
+                "buttons": row[5],
+                "will_pin": row[6],
+                "delete_previous_messages": row[7],
+                "will_add_tags": row[8],
+                "amount_of_tags": row[9],
+                "tag_everyone": row[10],
+                "lock": row[11]
+            }
+            groups.append(group)
+
+        return groups
+
+
+if __name__ == '__main__':
+    db = Database()
+    for i in db.get_all_groups():
+        print(i)
