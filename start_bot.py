@@ -58,6 +58,10 @@ async def add_group(message: types.Message) -> None:
     global groups
     groups.append(f'{message.chat.id}')
 
+@app.on_message(filters.me & filters.left_chat_member)
+async def remove_group(message: types.Message) -> None:
+    global groups
+    groups.pop(groups.index(f'{message.chat.id}'))
 
 
 
