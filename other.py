@@ -4,6 +4,8 @@ from loguru import logger
 from pyrogram import Client
 from CONFIG import TOKEN
 from random import shuffle
+app = Client(name="my_bot", bot_token=TOKEN, api_id='26106217', api_hash='0de43b316dabff6f00d3e6466819dc23')
+
 
 
 logger.add(

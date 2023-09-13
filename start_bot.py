@@ -8,21 +8,21 @@ from CONFIG import *
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram import F
-from aiogram.filters import Command, IS_MEMBER, IS_NOT_MEMBER
-from aiogram.filters import ChatMemberUpdatedFilter
-from aiogram.types import ChatMemberUpdated
-from other import *
+from aiogram.filters import Command
 from pyrogram import Client, filters
 from pyrogram.types import Chat, Dialog
 from pyrogram.enums import ChatType
+from other import *
 
 form_router = Router()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(form_router)
 
-group = []
+app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
+app.start()
+groups = []
+
 
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -46,6 +46,7 @@ async def cmd_start(message: types.Message):
         await message.reply("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
                             "сообщений /add")
 
+
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
@@ -53,24 +54,29 @@ async def add_group(message: types.Message, state: FSMContext):
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
 
-@form_router.message(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
-async def add_new_group(event: ChatMemberUpdated):
-    global group
-    get_me_coro = await bot.get_me()
-    bots_username = get_me_coro.username
 
-    if bots_username == event.from_user.username:
-        group.append(f'{event.chat.id}')
+def build_session():
+    if os.path.exists('my_bot.session') > 0:
+        print('Сессия существует')
+    else:
+        print('Введите данные')
+        api_id = input('API_ID - ')
+        api_hash = input('API_HASH - ')
 
-@form_router.message(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
-async def remove_old_group(event: ChatMemberUpdated):
-    global group
-    get_me_coro = await bot.get_me()
-    bots_username = get_me_coro.username
+        async def start(api_id, api_hash):
+            app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
+            await app.start()
+            await app.get_me()
+            await app.stop()
 
-    if bots_username == event.from_user.username:
-        group.pop(group.index(f'{event.chat.id}'))
-
+        asyncio.run(start(api_id=api_id, api_hash=api_hash))
 
 
+async def main():
+    await dp.start_polling(bot)
 
+
+if __name__ == '__main__':
+    # build_session()
+    logger.info('Бот запущен')
+    asyncio.run(main())
