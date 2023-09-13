@@ -266,13 +266,13 @@ async def infinity_tags(chat_id, number_of_tags):
 
 
 @logger.catch
-async def send_message_with_tags(tegs_in_tuple, buttons = None):
+async def send_message_with_tags(tegs_in_tuple, buttons=None):
     builder = InlineKeyboardBuilder()
     if buttons is not None:
         for i in buttons:
             builder.row(
-                text = i['name'],
-                url = i['URL']
+                text=i['name'],
+                url=i['URL']
             )
 
     if get_data_from_key('message_photo'):
