@@ -3,6 +3,7 @@ import os
 import random
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from CONFIG import *
 from aiogram import Bot, Dispatcher, types, Router
@@ -265,14 +266,23 @@ async def infinity_tags(chat_id, number_of_tags):
 
 
 @logger.catch
-async def send_message_with_tags(tegs_in_tuple):
+async def send_message_with_tags(tegs_in_tuple, buttons = None):
+    builder = InlineKeyboardBuilder()
+    if buttons is not None:
+        for i in buttons:
+            builder.row(
+                text = i['name'],
+                url = i['URL']
+            )
+
     if get_data_from_key('message_photo'):
         msg = await bot.send_photo(
             chat_id=get_data_from_key('group_id'),
             photo=get_data_from_key('message_photo'),
             caption=f"{get_data_from_key('caption_text')}\n{''.join(f'[ ᅠ ]({tag})' for tag in tegs_in_tuple)}",
             parse_mode='Markdown',
-            disable_notification=True
+            disable_notification=True,
+            reply_markup=builder.as_markup()
         )
         save_key_value(key=f'message_id_from_pin', value=msg.message_id)
     else:
@@ -281,7 +291,8 @@ async def send_message_with_tags(tegs_in_tuple):
             text=f'{get_data_from_key("caption_text")}'
                  f"{get_data_from_key('caption_text')}\n{''.join(f'[ ᅠ ]({tag})' for tag in tegs_in_tuple)}",
             parse_mode='Markdown',
-            disable_notification=True
+            disable_notification=True,
+            reply_markup=builder.as_markup()
         )
         save_key_value(key=f'message_id_from_pin', value=msg.message_id)
 
