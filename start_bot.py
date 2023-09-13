@@ -88,11 +88,11 @@ async def get_message(message: types.Message, state: FSMContext):
     except TypeError:
         save_key_value(f'{message.chat.id}_message_photo', value=None)
 
-    await bot.send_photo(chat_id=message.chat.id,
-                         caption=message.md_text,
-                         photo=message.photo[0].file_id,
-                         parse_mode='MarkdownV2'
-                         )
+    # await bot.send_photo(chat_id=message.chat.id,
+    #                      caption=message.md_text,
+    #                      photo=message.photo[0].file_id,
+    #                      parse_mode='MarkdownV2'
+    #                      )
 
     await message.answer('Сообщение принято, будем добавлять кнопки?', reply_markup=yes_no_keyboard)
     await state.set_state(FSM.start_buttons)
@@ -114,7 +114,7 @@ async def get_button_name(message: types.Message, state: FSMContext):
         r.append(message.text)
         save_key_value(key=f'{message.chat.id}_buttons_names', value=r)
     else:
-        save_key_value(key=f'{message.chat.id}_buttons_names', value=message.text)
+        save_key_value(key=f'{message.chat.id}_buttons_names', value=[message.text, ])
 
     await message.answer('Отправь ссылку для кнопки')
     await state.set_state(FSM.get_button_url)
@@ -229,6 +229,7 @@ async def timer(message: types.Message, state: FSMContext):
         tag_everyone=get_data_from_key(f'{message.chat.id}_all_or_online_tags'),
         currently_in_use=1,
         timer=get_data_from_key(f'{message.chat.id}_timer'))
+    group_id = get_data_from_key(f'{message.chat.id}_group_id')
     delete_by_key(f'{message.chat.id}_group_id')
     delete_by_key(f'{message.chat.id}_caption_text')
     delete_by_key(f'{message.chat.id}_message_photo')
@@ -240,6 +241,31 @@ async def timer(message: types.Message, state: FSMContext):
     delete_by_key(f'{message.chat.id}_all_or_online_tags')
     delete_by_key(f'{message.chat.id}_timer')
     await message.answer('Сообщение добавлено в работу')
+    await message.answer('В данный момент функция не работает, скоро исправлю')
+    # await work_with_message(group_id=group_id)
+
+
+async def work_with_message(group_id):
+    while True:
+        data = db.get_group_by_id(group_id=group_id)
+        if data["currently_in_use"] == 0:
+            break
+
+        message_text = data["message_text"]
+        message_photo_id = data["message_photo_id"]
+        buttons = eval(data["buttons"])
+        will_pin = bool(data["will_pin"])
+        delete_previous_messages = bool(data["delete_previous_messages"])
+        will_add_tags = bool(data["will_add_tags"])
+        amount_of_tags = data["amount_of_tags"]
+        tag_everyone = bool(data["tag_everyone"])
+        timer = float(data["timer"])
+
+        if buttons == '':
+            use_buttons = False
+        will_pin = bool(will_pin)
+
+
 
 
 # region пока не нужно
