@@ -8,7 +8,10 @@ from CONFIG import *
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.filters import Command
+from aiogram import F
+from aiogram.filters import Command, IS_MEMBER, IS_NOT_MEMBER
+from aiogram.filters import ChatMemberUpdatedFilter
+from aiogram.types import ChatMemberUpdated
 from other import *
 from pyrogram import Client, filters
 from pyrogram.types import Chat, Dialog
@@ -19,9 +22,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(form_router)
 
-app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
-app.start()
-groups = []
+group = []
 
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -45,7 +46,6 @@ async def cmd_start(message: types.Message):
         await message.reply("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
                             "сообщений /add")
 
-
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
@@ -53,15 +53,23 @@ async def add_group(message: types.Message, state: FSMContext):
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
 
-@app.on_message(filters.me & filters.new_chat_members)
-async def add_group(message: types.Message) -> None:
-    global groups
-    groups.append(f'{message.chat.id}')
+@form_router.message(ChatMemberUpdatedFilter(IS_NOT_MEMBER >> IS_MEMBER))
+async def add_new_group(event: ChatMemberUpdated):
+    global group
+    get_me_coro = await bot.get_me()
+    bots_username = get_me_coro.username
 
-@app.on_message(filters.me & filters.left_chat_member)
-async def remove_group(message: types.Message) -> None:
-    global groups
-    groups.pop(groups.index(f'{message.chat.id}'))
+    if bots_username == event.from_user.username:
+        group.append(f'{event.chat.id}')
+
+@form_router.message(ChatMemberUpdatedFilter(IS_MEMBER >> IS_NOT_MEMBER))
+async def remove_old_group(event: ChatMemberUpdated):
+    global group
+    get_me_coro = await bot.get_me()
+    bots_username = get_me_coro.username
+
+    if bots_username == event.from_user.username:
+        group.pop(group.index(f'{event.chat.id}'))
 
 
 
