@@ -1,7 +1,6 @@
 import asyncio
 import os
 import random
-from types import NoneType
 
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
 
@@ -50,7 +49,7 @@ class GetGroupStates(StatesGroup):
 async def cmd_start(message: types.Message):
     if is_private(message):
         await message.reply("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
-                            "сообщений /add_pin_message")
+                            "сообщений /add_tagged_message")
 
 
 # начальная функция для закрепления сообщения если человек не проходит проверку на админа, она не запускает туннель
@@ -242,12 +241,12 @@ async def stop_tagged(message: types.Message):
 
 
 @logger.catch
-async def infinity_tags(chat_id):
+async def infinity_tags(chat_id, number_of_tags):
     while True:
         if get_data_from_key('will_teg_be_used'):
             members_usernames = get_data_from_key('members_usernames')
-            tegs = tuple(random.sample(members_usernames, 5))
-            # logger.debug(f'{tegs=}')
+            tegs = tuple(random.sample(members_usernames, int(number_of_tags)))
+            logger.debug(f'{tegs=}')
 
         else:
             tegs = ['1' for i in range(5)]
@@ -266,24 +265,12 @@ async def infinity_tags(chat_id):
 
 
 @logger.catch
-async def send_message_with_tags(teg_5_in_tuple):
-
-    if len(teg_5_in_tuple) < 5:
-        teg = teg_5_in_tuple
-        for i in range(5-len(teg_5_in_tuple)):
-            teg.append('1')
-        teg_5_in_tuple = teg
-
-
-
-
-    teg1, teg2, teg3, teg4, teg5 = teg_5_in_tuple
+async def send_message_with_tags(tegs_in_tuple):
     if get_data_from_key('message_photo'):
         msg = await bot.send_photo(
             chat_id=get_data_from_key('group_id'),
             photo=get_data_from_key('message_photo'),
-            caption=f'{get_data_from_key("caption_text")}'
-                    f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+            caption=f"{get_data_from_key('caption_text')}\n{''.join(f'[ ᅠ ]({tag})' for tag in tegs_in_tuple)}",
             parse_mode='Markdown',
             disable_notification=True
         )
@@ -292,7 +279,7 @@ async def send_message_with_tags(teg_5_in_tuple):
         msg = await bot.send_message(
             chat_id=get_data_from_key('group_id'),
             text=f'{get_data_from_key("caption_text")}'
-                 f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
+                 f"{get_data_from_key('caption_text')}\n{''.join(f'[ ᅠ ]({tag})' for tag in tegs_in_tuple)}",
             parse_mode='Markdown',
             disable_notification=True
         )
@@ -308,7 +295,8 @@ async def other(message: types.Message):
     else:
         if message.pinned_message and message.from_user.username == (await bot.get_me()).username:
             await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-            # print(message)
+    for i in message:
+        logger.info(i)
 
 
 # region запуск бота
