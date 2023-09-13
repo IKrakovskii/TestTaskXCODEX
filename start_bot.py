@@ -9,10 +9,10 @@ from aiogram import Bot, Dispatcher, types, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
-from other import *
 from pyrogram import Client, filters
 from pyrogram.types import Chat, Dialog
 from pyrogram.enums import ChatType
+from other import *
 
 form_router = Router()
 bot = Bot(token=TOKEN)
@@ -22,6 +22,7 @@ dp.include_router(form_router)
 app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
 app.start()
 groups = []
+
 
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -53,16 +54,29 @@ async def add_group(message: types.Message, state: FSMContext):
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
 
-@app.on_message(filters.me & filters.new_chat_members)
-async def add_group(message: types.Message) -> None:
-    global groups
-    groups.append(f'{message.chat.id}')
 
-@app.on_message(filters.me & filters.left_chat_member)
-async def remove_group(message: types.Message) -> None:
-    global groups
-    groups.pop(groups.index(f'{message.chat.id}'))
+def build_session():
+    if os.path.exists('my_bot.session') > 0:
+        print('Сессия существует')
+    else:
+        print('Введите данные')
+        api_id = input('API_ID - ')
+        api_hash = input('API_HASH - ')
+
+        async def start(api_id, api_hash):
+            app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
+            await app.start()
+            await app.get_me()
+            await app.stop()
+
+        asyncio.run(start(api_id=api_id, api_hash=api_hash))
 
 
+async def main():
+    await dp.start_polling(bot)
 
 
+if __name__ == '__main__':
+    # build_session()
+    logger.info('Бот запущен')
+    asyncio.run(main())

@@ -18,9 +18,6 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(form_router)
 
-app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
-app.start()
-
 
 # Проверка на админа
 def is_admin(message: types.Message):
@@ -302,9 +299,9 @@ async def send_message_with_tags(tegs_in_tuple, buttons=None):
 
 
 # Для ответа на незапланированные сценарии
-@app.on_message(filters.me in filters.new_chat_members)
-async def add_group(message: types.Message) -> int:
-    logger.info(f'ID чата: {message.chat.id}\nНазвание чата {message.chat.title}')
+# @app.on_message(filters.me in filters.new_chat_members)
+# async def add_group(message: types.Message):
+#     logger.info(f'ID чата: {message.chat.id}\nНазвание чата {message.chat.title}')
 
 
 @form_router.message()
@@ -318,21 +315,21 @@ async def other(message: types.Message):
 
 
 # region запуск бота
-# def build_session():
-#     if os.path.exists('my_bot.session') > 0:
-#         print('Сессия существует')
-#     else:
-#         print('Введите данные')
-#         api_id = input('API_ID - ')
-#         api_hash = input('API_HASH - ')
-#
-#         async def start(api_id, api_hash):
-#             app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
-#             await app.start()
-#             await app.get_me()
-#             await app.stop()
-#
-#         asyncio.run(start(api_id=api_id, api_hash=api_hash))
+def build_session():
+    if os.path.exists('my_bot.session') > 0:
+        print('Сессия существует')
+    else:
+        print('Введите данные')
+        api_id = input('API_ID - ')
+        api_hash = input('API_HASH - ')
+
+        async def start(api_id, api_hash):
+            app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
+            await app.start()
+            await app.get_me()
+            await app.stop()
+
+        asyncio.run(start(api_id=api_id, api_hash=api_hash))
 
 
 async def main():
