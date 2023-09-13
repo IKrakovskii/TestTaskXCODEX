@@ -11,11 +11,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from other import *
+from pyrogram import Client, filters
 
 form_router = Router()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(form_router)
+
+app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
+app.start()
 
 
 # Проверка на админа
@@ -298,6 +302,11 @@ async def send_message_with_tags(tegs_in_tuple, buttons=None):
 
 
 # Для ответа на незапланированные сценарии
+@app.on_message(filters.me in filters.new_chat_members)
+async def add_group(message: types.Message) -> int:
+    logger.info(f'ID чата: {message.chat.id}\nНазвание чата {message.chat.title}')
+
+
 @form_router.message()
 @logger.catch
 async def other(message: types.Message):
@@ -306,26 +315,24 @@ async def other(message: types.Message):
     else:
         if message.pinned_message and message.from_user.username == (await bot.get_me()).username:
             await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-    for i in message:
-        logger.info(i)
 
 
 # region запуск бота
-def build_session():
-    if os.path.exists('my_bot.session') > 0:
-        print('Сессия существует')
-    else:
-        print('Введите данные')
-        api_id = input('API_ID - ')
-        api_hash = input('API_HASH - ')
-
-        async def start(api_id, api_hash):
-            app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
-            await app.start()
-            await app.get_me()
-            await app.stop()
-
-        asyncio.run(start(api_id=api_id, api_hash=api_hash))
+# def build_session():
+#     if os.path.exists('my_bot.session') > 0:
+#         print('Сессия существует')
+#     else:
+#         print('Введите данные')
+#         api_id = input('API_ID - ')
+#         api_hash = input('API_HASH - ')
+#
+#         async def start(api_id, api_hash):
+#             app = Client(name="my_bot", bot_token=TOKEN, api_id=api_id, api_hash=api_hash)
+#             await app.start()
+#             await app.get_me()
+#             await app.stop()
+#
+#         asyncio.run(start(api_id=api_id, api_hash=api_hash))
 
 
 async def main():
@@ -333,7 +340,7 @@ async def main():
 
 
 if __name__ == '__main__':
-    build_session()
+    # build_session()
     logger.info('Бот запущен')
     asyncio.run(main())
 

@@ -21,7 +21,7 @@ dp.include_router(form_router)
 
 app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
 app.start()
-groups = []
+
 
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -53,12 +53,7 @@ async def add_group(message: types.Message, state: FSMContext):
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
 
-@app.on_message(filters.me & filters.new_chat_members)
-async def add_group(message: types.Message) -> None:
-    global groups
-    groups.append(f'{message.chat.id}')
 
-
-
-
-
+@app.on_message(filters.me in filters.new_chat_members)
+async def add_group(message: types.Message) -> int:
+    return message.chat.idx
