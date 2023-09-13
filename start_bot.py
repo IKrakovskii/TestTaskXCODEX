@@ -1,8 +1,11 @@
 import asyncio
 import os
 import random
-
+from aiogram.filters import Command, IS_MEMBER, IS_NOT_MEMBER
+from aiogram.filters import ChatMemberUpdatedFilter
+from aiogram.types import ChatMemberUpdated, InlineKeyboardButton
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from CONFIG import *
 from aiogram import Bot, Dispatcher, types, Router
@@ -12,6 +15,8 @@ from aiogram.filters import Command
 from pyrogram import Client, filters
 from pyrogram.types import Chat, Dialog
 from pyrogram.enums import ChatType
+
+from database_metods import Database
 from other import *
 
 form_router = Router()
@@ -21,7 +26,7 @@ dp.include_router(form_router)
 
 app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
 app.start()
-groups = []
+db = Database()
 
 
 def is_admin(message: types.Message):
@@ -50,9 +55,36 @@ async def cmd_start(message: types.Message):
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
+    builder = InlineKeyboardBuilder()
+    for i in db.get_all_groups():
+        logger.info(f'{i["group_name"]}')
+        logger.info(f'{i["group_name"]}')
+
+        # builder.row(
+        #     [InlineKeyboardButton(f'{i["group_name"]}')],
+        #             [InlineKeyboardButton(f'{i["group_name"]}')]
+        # )
     await message.answer('Выбери группу')
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
+
+
+# @form_router.message()
+# async def add_new_group(message: types.Message):
+#     get_me_coro = await bot.get_me()
+#     bots_username = get_me_coro.username
+#     if
+#     if bots_username == message.new_chat_members[0].username:
+#         logger.info(f'{message.chat.id}')
+#
+#
+# @form_router.message()
+# async def remove_old_group(message: types.Message):
+#     get_me_coro = await bot.get_me()
+#     bots_username = get_me_coro.username
+#
+#     if bots_username == message.left_chat_member[0].username:
+#         logger.info(f'{message.chat.id}')
 
 
 def build_session():
