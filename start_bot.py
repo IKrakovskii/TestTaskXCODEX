@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 from other import *
-from pyrogram import Client
+from pyrogram import Client, filters
 from pyrogram.types import Chat, Dialog
 from pyrogram.enums import ChatType
 
@@ -19,6 +19,9 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 dp.include_router(form_router)
 
+app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
+app.start()
+groups = []
 
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -50,14 +53,11 @@ async def add_group(message: types.Message, state: FSMContext):
     await bot.send_message()
     # await state.set_state(GetGroupStates.waiting_for_group_link)
 
-async def gather_groups() -> list:
-    app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
-    await app.start()
-    groups = []
-    async for dialog in app.get_dialogs():
-        if dialog.chat.type is ChatType.GROUP or dialog.chat.type is ChatType.SUPERGROUP or dialog.chat.type is ChatType.CHANNEL:
-            groups.append(f'{dialog.chat.id}')
-    return groups
+@app.on_message(filters.me & filters.new_chat_members)
+async def add_group(message: types.Message) -> None:
+    global groups
+    groups.append(f'{message.chat.id}')
+
 
 
 
