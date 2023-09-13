@@ -23,7 +23,8 @@ class Database:
         will_add_tags INEGER,
         amount_of_tags INTEGER,
         tag_everyone INTEGER,
-        lock INTEGER
+        lock INTEGER,
+        timer REAL
         
         )
          ''')
@@ -51,7 +52,7 @@ class Database:
 
     def add_all_params(self, group_id, lock, message_text, message_photo_id,
                        buttons, will_pin, delete_previous_messages, will_add_tags,
-                       amount_of_tags, tag_everyone, currently_in_use):
+                       amount_of_tags, tag_everyone, currently_in_use, timer):
         with self.lock:
             self.cur.execute("""
                    UPDATE groups
@@ -65,11 +66,12 @@ class Database:
                        will_add_tags = ?,
                        amount_of_tags = ?,
                        tag_everyone = ?,
-                       currently_in_use = ?
+                       currently_in_use = ?,
+                       timer = ?
                    WHERE group_id = ?
                """, (lock, message_text, message_photo_id, buttons, will_pin,
                      delete_previous_messages, will_add_tags, amount_of_tags, tag_everyone,
-                     currently_in_use, group_id))
+                     currently_in_use, group_id, timer))
 
     def get_all_groups(self):
         with self.lock:
@@ -89,7 +91,8 @@ class Database:
                 "will_add_tags": row[8],
                 "amount_of_tags": row[9],
                 "tag_everyone": row[10],
-                "lock": row[11]
+                "lock": row[11],
+                "timer": row[12]
             }
             groups.append(group)
 
