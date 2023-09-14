@@ -86,7 +86,7 @@ class Database:
         for row in rows:
             group = {
                 "group_id": row[0],
-                "currently_in_use": row[1],
+                "currently_in_use": bool(row[1]),
                 "group_name": row[2],
                 "message_text": row[3],
                 "message_photo_id": row[4],
@@ -96,8 +96,8 @@ class Database:
                 "will_add_tags": bool(row[8]),
                 "amount_of_tags": row[9],
                 "tag_everyone": bool(row[10]),
-                "lock": row[11],
-                "timer": float(row[12])
+                "lock": bool(row[11]),
+                "timer": max(0.5, float(row[12]))
             }
             groups.append(group)
 
@@ -111,7 +111,7 @@ class Database:
             if row:
                 group = {
                     "group_id": row[0],
-                    "currently_in_use": row[1],
+                    "currently_in_use": bool(row[1]),
                     "group_name": row[2],
                     "message_text": row[3],
                     "message_photo_id": row[4],
@@ -122,7 +122,7 @@ class Database:
                     "amount_of_tags": row[9],
                     "tag_everyone": bool(row[10]),
                     "lock": row[11],
-                    "timer": float(row[12])
+                    "timer": max(0.5, float(row[12]))
                 }
             else:
                 group = None

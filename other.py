@@ -4,7 +4,8 @@ from aiogram import types
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from loguru import logger
 from pyrogram import Client
-
+from pyrogram.enums import UserStatus
+from CONFIG import TOKEN
 
 logger.add(
     'logs/logs.log',
@@ -15,11 +16,13 @@ logger.add(
 shelf = shelve.open('Database/cache')
 
 
+@logger.catch
 def save_key_value(key: str, value: Any):
     shelf[key] = value
     shelf.sync()
 
 
+@logger.catch
 def get_data_from_key(key: str) -> Any | bool:
     try:
         return shelf[key]
@@ -27,6 +30,7 @@ def get_data_from_key(key: str) -> Any | bool:
         return False
 
 
+@logger.catch
 def delete_by_key(key: str):
     try:
         shelf.pop(key)
@@ -34,6 +38,7 @@ def delete_by_key(key: str):
         return False
 
 
+@logger.catch
 def delete_cache(message: types.Message):
     delete_by_key(f'{message.chat.id}_group_id')
     delete_by_key(f'{message.chat.id}_caption_text')
@@ -47,17 +52,23 @@ def delete_cache(message: types.Message):
     delete_by_key(f'{message.chat.id}_timer')
 
 
-async def get_members_usernames(chat_id):
-    # app = Client(name="my_bot", bot_token=TOKEN, api_id=API_ID, api_hash=API_HASH)
-    app = Client(name="my_bot")
+@logger.catch
+async def get_members_usernames(chat_id, is_online):
+    app = Client(name="my_bot", bot_token=TOKEN)
     await app.start()
     chat_members = []
+    async for member in app.get_chat_members(int(chat_id)):
+        usr_info = await app.get_chat_member(user_id=member.user.id, chat_id=chat_id)
 
-    async for member in app.get_chat_members(chat_id):
-        r = (await app.get_chat_member(user_id=member.user.id, chat_id=chat_id)).user.username
-        if r is not None:
-            chat_members.append(f'@{r}')
-        save_key_value(key='members_usernames', value=chat_members)
+        user_name = usr_info.user.username
+
+        if is_online:
+            if usr_info is not None and member.user.status == UserStatus.ONLINE:
+                chat_members.append(f'@{user_name}')
+        else:
+            if usr_info is not None:
+                chat_members.append(f'@{user_name}')
+
     await app.stop()
     return chat_members
 
@@ -85,16 +96,3 @@ all_or_online_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True,
     one_time_keyboard=True
 )
-
-'''
-невидимые теги
-
-await bot.send_photo(
-        chat_id=message.chat.id,
-        photo=message.photo[0].file_id,
-        caption=f'{message.caption if message.text is None else message.text}'
-                f'\n[ ᅠ ]({teg1})[ ᅠ ]({teg2})[ ᅠ ]({teg3})[ ᅠ ]({teg4})[ ᅠ ]({teg5})',
-        parse_mode='Markdown'
-    )
-
-'''
