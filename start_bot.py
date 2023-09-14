@@ -253,6 +253,40 @@ async def timer(message: types.Message, state: FSMContext):
     # await work_with_message(group_id=group_id)
 
 
+@form_router.message()
+@logger.catch
+async def add_new_group(message: types.Message):
+    if message.new_chat_members is None:
+        return
+    get_me_coro = await bot.get_me()
+    bots_username = get_me_coro.username
+    usernames = [i.username for i in message.new_chat_members]
+    if bots_username in usernames:
+        db.joined_a_group(group_id=message.chat.id, group_name=message.chat.title)
+
+
+@form_router.message()
+@logger.catch
+async def remove_old_group(message: types.Message):
+    if message.left_chat_member is None:
+        return
+    get_me_coro = await bot.get_me()
+    bots_username = get_me_coro.username
+
+    if bots_username == message.left_chat_member.username:
+        db.leaved_a_group(group_id=message.chat.id)
+
+
+@form_router.message()
+@logger.catch
+async def other(message: types.Message):
+    if message.chat.type == 'private':
+        await message.reply('Команда не распознана')
+    else:
+        if message.pinned_message and message.from_user.username == (await bot.get_me()).username:
+            await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
+
+
 async def work_with_message(group_id):
     while True:
         data = db.get_group_by_id(group_id=group_id)
@@ -272,8 +306,6 @@ async def work_with_message(group_id):
         if buttons == '':
             use_buttons = False
         will_pin = bool(will_pin)
-
-
 
 
 # region пока не нужно
@@ -304,3 +336,10 @@ if __name__ == '__main__':
     asyncio.run(main())
 
 # endregion
+
+data = {'group_id': '99999999', 'currently_in_use': 0,
+        'group_name': 'Группа 1', 'message_text': '0',
+        'message_photo_id': '0', 'buttons': '0',
+        'will_pin': 0, 'delete_previous_messages': 0,
+        'will_add_tags': 0, 'amount_of_tags': 0,
+        'tag_everyone': 0, 'lock': 1, 'timer': 0.0}
