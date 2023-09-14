@@ -39,7 +39,7 @@ class Database:
               amount_of_tags, tag_everyone, currently_in_use, timer
               )
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                             (group_id, group_name, 0, '', '', '', 0, 0, 0, 0, 0, 0, 0.0))
+                             (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0))
             self.conn.commit()
 
     def leaved_a_group(self, group_id):
