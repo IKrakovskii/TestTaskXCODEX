@@ -6,8 +6,6 @@ from loguru import logger
 from pyrogram import Client
 from CONFIG import TOKEN
 from random import shuffle
-app = Client(name="my_bot", bot_token=TOKEN, api_id='26106217', api_hash='0de43b316dabff6f00d3e6466819dc23')
-
 
 
 logger.add(
@@ -17,12 +15,12 @@ logger.add(
 )
 
 shelf = shelve.open('Database/cache')
-shelf_arr = shelve.open('Database/array')
 
 
 def save_key_value(key: str, value: Any):
     shelf[key] = value
     shelf.sync()
+
 
 
 def get_data_from_key(key: str) -> Any | bool:
@@ -41,7 +39,7 @@ def delete_by_key(key: str):
 
 async def get_members_usernames(chat_id):
     # app = Client(name="my_bot", bot_token=TOKEN, api_id=API_ID, api_hash=API_HASH)
-    app = Client(name="my_bot", bot_token=TOKEN, api_id=None, api_hash=None)
+    app = Client(name="my_bot")
     await app.start()
     chat_members = []
 
@@ -55,29 +53,28 @@ async def get_members_usernames(chat_id):
 
 
 kb = [
-        [
-            KeyboardButton(text='✅Да'),
-            KeyboardButton(text='❌нет')
-        ]
+    [
+        KeyboardButton(text='✅Да'),
+        KeyboardButton(text='❌нет')
     ]
+]
 yes_no_keyboard = ReplyKeyboardMarkup(
-        keyboard=kb,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
+    keyboard=kb,
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
 
 kb = [
-        [
-            KeyboardButton(text='Всех'),
-            KeyboardButton(text='Кто в онлайн')
-        ]
+    [
+        KeyboardButton(text='Всех'),
+        KeyboardButton(text='Кто в онлайн')
     ]
+]
 all_or_online_keyboard = ReplyKeyboardMarkup(
-        keyboard=kb,
-        resize_keyboard=True,
-        one_time_keyboard=True
-    )
-
+    keyboard=kb,
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
 
 '''
 невидимые теги
