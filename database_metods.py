@@ -36,9 +36,10 @@ class Database:
             INSERT INTO groups (
             group_id, group_name,lock, message_text, message_photo_id,
              buttons, will_pin, delete_previous_messages, will_add_tags,
-              amount_of_tags, tag_everyone, currently_in_use
+              amount_of_tags, tag_everyone, currently_in_use, timer
               )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)''', (group_id, group_name, 0, '', '', '', 0, 0, 0, 0, 0, 0))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                             (group_id, group_name, 0, '', '', '', 0, 0, 0, 0, 0, 0, 0.0))
             self.conn.commit()
 
     def leaved_a_group(self, group_id):
