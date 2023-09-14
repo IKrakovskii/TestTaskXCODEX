@@ -4,13 +4,15 @@ import asyncio
 import os
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from CONFIG import *
-from aiogram import Bot, Dispatcher, types, Router
+from aiogram import Bot, Dispatcher, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.filters import Command
 
 from database_metods import Database
 from other import *
+
+from tets import get_all_cache
 
 form_router = Router()
 bot = Bot(token=TOKEN)
@@ -61,6 +63,7 @@ async def cmd_start(message: types.Message):
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
+    delete_cache()
     logger.info(await bot.get_chat_member(chat_id=message.chat.id, user_id=351162658))
     builder = []
     for i in db.get_all_groups():
@@ -216,11 +219,18 @@ async def timer(message: types.Message, state: FSMContext):
         return
     except Exception as e:
         logger.error(e)
+    await state.clear()
     buttons = []
-    for name, url in zip(
-            get_data_from_key(f'{message.chat.id}_buttons_names'),
-            get_data_from_key(f'{message.chat.id}_buttons_urls')):
-        buttons.append({'name': name, 'url': url})
+    logger.info(f'{get_all_cache()=}')
+    if get_data_from_key(f'{message.chat.id}_buttons_names') and get_data_from_key(f'{message.chat.id}_buttons_urls'):
+
+        for name, url in zip(
+                get_data_from_key(f'{message.chat.id}_buttons_names'),
+                get_data_from_key(f'{message.chat.id}_buttons_urls')):
+            buttons.append({'name': name, 'url': url})
+    else:
+
+        buttons = None
 
     db.add_all_params(
         group_id=get_data_from_key(f'{message.chat.id}_group_id'),
@@ -236,16 +246,7 @@ async def timer(message: types.Message, state: FSMContext):
         currently_in_use=1,
         timer=get_data_from_key(f'{message.chat.id}_timer'))
     group_id = get_data_from_key(f'{message.chat.id}_group_id')
-    delete_by_key(f'{message.chat.id}_group_id')
-    delete_by_key(f'{message.chat.id}_caption_text')
-    delete_by_key(f'{message.chat.id}_message_photo')
-    delete_by_key(f'{message.chat.id}_buttons_names')
-    delete_by_key(f'{message.chat.id}_buttons_urls')
-    delete_by_key(f'{message.chat.id}_pin_message')
-    delete_by_key(f'{message.chat.id}_delete_old_message')
-    delete_by_key(f'{message.chat.id}_amount_of_tags')
-    delete_by_key(f'{message.chat.id}_all_or_online_tags')
-    delete_by_key(f'{message.chat.id}_timer')
+    delete_cache()
     data = db.get_group_by_id(group_id=group_id)
     logger.info(f'{data=}')
     await message.answer('Сообщение добавлено в работу')
@@ -287,25 +288,25 @@ async def other(message: types.Message):
             await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
 
 
-async def work_with_message(group_id):
-    while True:
-        data = db.get_group_by_id(group_id=group_id)
-        if data["currently_in_use"] == 0:
-            break
-
-        message_text = data["message_text"]
-        message_photo_id = data["message_photo_id"]
-        buttons = eval(data["buttons"])
-        will_pin = bool(data["will_pin"])
-        delete_previous_messages = bool(data["delete_previous_messages"])
-        will_add_tags = bool(data["will_add_tags"])
-        amount_of_tags = data["amount_of_tags"]
-        tag_everyone = bool(data["tag_everyone"])
-        timer = float(data["timer"])
-
-        if buttons == '':
-            use_buttons = False
-        will_pin = bool(will_pin)
+# async def work_with_message(group_id):
+#     while True:
+#         data = db.get_group_by_id(group_id=group_id)
+#         if data["currently_in_use"] == 0:
+#             break
+#
+#         message_text = data["message_text"]
+#         message_photo_id = data["message_photo_id"]
+#         buttons = eval(data["buttons"])
+#         will_pin = bool(data["will_pin"])
+#         delete_previous_messages = bool(data["delete_previous_messages"])
+#         will_add_tags = bool(data["will_add_tags"])
+#         amount_of_tags = data["amount_of_tags"]
+#         tag_everyone = bool(data["tag_everyone"])
+#         timer = float(data["timer"])
+#
+#         if buttons == '':
+#             use_buttons = False
+#         will_pin = bool(will_pin)
 
 
 # region пока не нужно

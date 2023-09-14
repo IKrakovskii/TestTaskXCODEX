@@ -90,14 +90,14 @@ class Database:
                 "group_name": row[2],
                 "message_text": row[3],
                 "message_photo_id": row[4],
-                "buttons": row[5],
-                "will_pin": row[6],
-                "delete_previous_messages": row[7],
-                "will_add_tags": row[8],
+                "buttons": eval(row[5]),
+                "will_pin": bool(row[6]),
+                "delete_previous_messages": bool(row[7]),
+                "will_add_tags": bool(row[8]),
                 "amount_of_tags": row[9],
-                "tag_everyone": row[10],
+                "tag_everyone": bool(row[10]),
                 "lock": row[11],
-                "timer": row[12]
+                "timer": float(row[12])
             }
             groups.append(group)
 
@@ -115,14 +115,14 @@ class Database:
                     "group_name": row[2],
                     "message_text": row[3],
                     "message_photo_id": row[4],
-                    "buttons": row[5],
-                    "will_pin": row[6],
-                    "delete_previous_messages": row[7],
-                    "will_add_tags": row[8],
+                    "buttons": eval(row[5]),
+                    "will_pin": bool(row[6]),
+                    "delete_previous_messages": bool(row[7]),
+                    "will_add_tags": bool(row[8]),
                     "amount_of_tags": row[9],
-                    "tag_everyone": row[10],
+                    "tag_everyone": bool(row[10]),
                     "lock": row[11],
-                    "timer": row[12]
+                    "timer": float(row[12])
                 }
             else:
                 group = None
