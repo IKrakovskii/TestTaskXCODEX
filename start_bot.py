@@ -13,6 +13,7 @@ from database_metods import Database
 from other import *
 
 from tets import get_all_cache
+from main import infinity_tags
 
 form_router = Router()
 bot = Bot(token=TOKEN)
@@ -64,7 +65,7 @@ async def cmd_start(message: types.Message):
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
     delete_cache(message)
-    logger.info(await bot.get_chat_member(chat_id=message.chat.id, user_id=351162658))
+    #logger.info(await bot.get_chat_member(chat_id=message.chat.id, user_id=351162658))
     builder = []
     for i in db.get_all_groups():
         builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
@@ -250,8 +251,8 @@ async def timer(message: types.Message, state: FSMContext):
     data = db.get_group_by_id(group_id=group_id)
     logger.info(f'{data=}')
     await message.answer('Сообщение добавлено в работу')
-    await message.answer('В данный момент функция не работает, скоро исправлю')
-    # await work_with_message(group_id=group_id)
+    #await message.answer('В данный момент функция не работает, скоро исправлю')
+    await work_with_message(group_id=group_id)
 
 
 @form_router.message()
@@ -288,25 +289,41 @@ async def other(message: types.Message):
             await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
 
 
-# async def work_with_message(group_id):
-#     while True:
-#         data = db.get_group_by_id(group_id=group_id)
-#         if data["currently_in_use"] == 0:
-#             break
-#
-#         message_text = data["message_text"]
-#         message_photo_id = data["message_photo_id"]
-#         buttons = eval(data["buttons"])
-#         will_pin = bool(data["will_pin"])
-#         delete_previous_messages = bool(data["delete_previous_messages"])
-#         will_add_tags = bool(data["will_add_tags"])
-#         amount_of_tags = data["amount_of_tags"]
-#         tag_everyone = bool(data["tag_everyone"])
-#         timer = float(data["timer"])
-#
-#         if buttons == '':
-#             use_buttons = False
-#         will_pin = bool(will_pin)
+async def work_with_message(group_id):
+     while True:
+         data = db.get_group_by_id(group_id=group_id)
+         if data["currently_in_use"] == 0:
+             break
+         chat_id = data["group_id"]
+         message_text = data["message_text"]
+         message_photo_id = data["message_photo_id"] if data["message_photo_id"] != '' or data["message_photo_id"] is not None else None
+         buttons = eval(data["buttons"]) if data["buttons"] is not None else None
+         will_pin = bool(data["will_pin"])
+         delete_previous_messages = bool(data["delete_previous_messages"])
+         will_add_tags = bool(data["will_add_tags"])
+         amount_of_tags = data["amount_of_tags"]
+         tag_everyone = bool(data["tag_everyone"])
+         timer = float(data["timer"])
+
+         tags_in_a_tuple = ()
+         if will_add_tags:
+             tags_in_a_tuple = infinity_tags(chat_id, amount_of_tags)
+         if buttons == '' or buttons is None:
+             use_buttons = False
+         will_pin = bool(will_pin)
+         result = None
+         if message_photo_id is None:
+             result = await bot.send_message(chat_id=chat_id,
+                                             text=f'{message_text}\n{"".join([tag for tag in tags_in_a_tuple])}',
+                                             parse_mode="MarkdownV2")
+         else:
+             result = await bot.send_photo(photo = message_photo_id,
+                                           chat_id=chat_id,
+                                           caption=f'{message_text}\n{"".join([tag for tag in tags_in_a_tuple])}',
+                                           parse_mode="MarkdownV2")
+
+         await bot.pin_chat_message(chat_id=chat_id, message_id=result.message_id)
+
 
 
 # region пока не нужно

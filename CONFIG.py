@@ -6,6 +6,6 @@
 
 # TOKEN = ''
 # ADMIN_TG_USER_ID = ['']
-TOKEN = '6654710163:AAFTGt7Xs_rBtfzd4kYGONRMhZBu1NJAQwM'
+TOKEN = '6479912564:AAFxCwSHMSyksZ6Y5hSAjJzsE00P-5mQVHw'
 ADMIN_TG_USER_ID = ['351162658', '6386013639']
 DEBUG = True  # перед залитием на сервер написать DEBUG = False
