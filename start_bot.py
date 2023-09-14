@@ -63,7 +63,7 @@ async def cmd_start(message: types.Message):
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
-    delete_cache()
+    delete_cache(message)
     logger.info(await bot.get_chat_member(chat_id=message.chat.id, user_id=351162658))
     builder = []
     for i in db.get_all_groups():
@@ -246,7 +246,7 @@ async def timer(message: types.Message, state: FSMContext):
         currently_in_use=1,
         timer=get_data_from_key(f'{message.chat.id}_timer'))
     group_id = get_data_from_key(f'{message.chat.id}_group_id')
-    delete_cache()
+    delete_cache(message)
     data = db.get_group_by_id(group_id=group_id)
     logger.info(f'{data=}')
     await message.answer('Сообщение добавлено в работу')
@@ -337,10 +337,3 @@ if __name__ == '__main__':
     asyncio.run(main())
 
 # endregion
-
-data = {'group_id': '99999999', 'currently_in_use': 0,
-        'group_name': 'Группа 1', 'message_text': '0',
-        'message_photo_id': '0', 'buttons': '0',
-        'will_pin': 0, 'delete_previous_messages': 0,
-        'will_add_tags': 0, 'amount_of_tags': 0,
-        'tag_everyone': 0, 'lock': 1, 'timer': 0.0}
