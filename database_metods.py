@@ -50,9 +50,11 @@ class Database:
             self.conn.execute("""UPDATE groups SET lock = ? WHERE group_id = ?""", (lock, group_id))
             self.conn.commit()
 
-    def add_all_params(self, group_id, lock, message_text, message_photo_id,
-                       buttons, will_pin, delete_previous_messages, will_add_tags,
-                       amount_of_tags, tag_everyone, currently_in_use, timer):
+    def add_all_params(self, group_id: str, lock: int, message_text: str,
+                       message_photo_id: str, buttons: str, will_pin: int,
+                       delete_previous_messages: int, will_add_tags: int,
+                       amount_of_tags: int, tag_everyone: int,
+                       currently_in_use: int, timer: float):
         with self.lock:
             self.cur.execute("""
                    UPDATE groups

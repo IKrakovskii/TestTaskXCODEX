@@ -227,7 +227,7 @@ async def timer(message: types.Message, state: FSMContext):
         lock=0,
         message_text=get_data_from_key(f'{message.chat.id}_caption_text'),
         message_photo_id=get_data_from_key(f'{message.chat.id}_message_photo'),
-        buttons=buttons,
+        buttons=str(buttons),
         will_pin=get_data_from_key(f'{message.chat.id}_pin_message'),
         delete_previous_messages=get_data_from_key(f'{message.chat.id}_delete_old_message'),
         will_add_tags=0 if get_data_from_key(f'{message.chat.id}_amount_of_tags') == 0 else 1,
