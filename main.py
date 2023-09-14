@@ -220,14 +220,7 @@ async def will_teg_be_used(message: types.Message, state: FSMContext):
 @form_router.message(GetGroupStates.timer)
 @logger.catch
 async def timer(message: types.Message, state: FSMContext):
-    try:
-        save_key_value('timer', value=float(message.text))
-    except ValueError:
-        await message.answer('Вы неправильно напечатали число\n\n'
-                             'Отправь время, через которое нужно перезакреплять сообщения( в минутах). \n\n'
-                             'Можно написать целое число или через точку, например, 0.5')
-        await state.set_state(GetGroupStates.will_pin_be_used)
-        return
+
     await message.answer('Начинаю цикличное перезакрепление сообщения. \n\n'
                          'Для завершения напишите /stop_tagged')
     await state.clear()

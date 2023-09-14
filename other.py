@@ -1,5 +1,7 @@
 import shelve
 from typing import Any
+
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from loguru import logger
 from pyrogram import Client
 from CONFIG import TOKEN
@@ -31,7 +33,10 @@ def get_data_from_key(key: str) -> Any | bool:
 
 
 def delete_by_key(key: str):
-    shelf.pop(key)
+    try:
+        shelf.pop(key)
+    except KeyError:
+        return False
 
 
 async def get_members_usernames(chat_id):
@@ -47,6 +52,32 @@ async def get_members_usernames(chat_id):
         save_key_value(key='members_usernames', value=chat_members)
     await app.stop()
     return chat_members
+
+
+kb = [
+        [
+            KeyboardButton(text='✅Да'),
+            KeyboardButton(text='❌нет')
+        ]
+    ]
+yes_no_keyboard = ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
+kb = [
+        [
+            KeyboardButton(text='Всех'),
+            KeyboardButton(text='Кто в онлайн')
+        ]
+    ]
+all_or_online_keyboard = ReplyKeyboardMarkup(
+        keyboard=kb,
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+
 
 '''
 невидимые теги
