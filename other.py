@@ -1,11 +1,9 @@
 import shelve
 from typing import Any
-
+from aiogram import types
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from loguru import logger
 from pyrogram import Client
-from CONFIG import TOKEN
-from random import shuffle
 
 
 logger.add(
@@ -22,7 +20,6 @@ def save_key_value(key: str, value: Any):
     shelf.sync()
 
 
-
 def get_data_from_key(key: str) -> Any | bool:
     try:
         return shelf[key]
@@ -35,6 +32,19 @@ def delete_by_key(key: str):
         shelf.pop(key)
     except KeyError:
         return False
+
+
+def delete_cache(message: types.Message):
+    delete_by_key(f'{message.chat.id}_group_id')
+    delete_by_key(f'{message.chat.id}_caption_text')
+    delete_by_key(f'{message.chat.id}_message_photo')
+    delete_by_key(f'{message.chat.id}_buttons_names')
+    delete_by_key(f'{message.chat.id}_buttons_urls')
+    delete_by_key(f'{message.chat.id}_pin_message')
+    delete_by_key(f'{message.chat.id}_delete_old_message')
+    delete_by_key(f'{message.chat.id}_amount_of_tags')
+    delete_by_key(f'{message.chat.id}_all_or_online_tags')
+    delete_by_key(f'{message.chat.id}_timer')
 
 
 async def get_members_usernames(chat_id):

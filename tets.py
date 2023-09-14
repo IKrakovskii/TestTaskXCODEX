@@ -2,4 +2,7 @@ import shelve
 
 shelf = shelve.open('Database/cache')
 
-print(dict(shelf))
+
+def get_all_cache():
+    return dict(shelf)
+
