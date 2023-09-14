@@ -110,11 +110,12 @@ async def start_buttons(message: types.Message, state: FSMContext):
 
 @form_router.message(FSM.get_button_name)
 async def get_button_name(message: types.Message, state: FSMContext):
-    if r := get_data_from_key(key=f'{message.chat.id}_buttons_names'):
+    r = get_data_from_key(key=f'{message.chat.id}_buttons_names')
+    if type(r) == list:
         r.append(message.text)
         save_key_value(key=f'{message.chat.id}_buttons_names', value=r)
     else:
-        save_key_value(key=f'{message.chat.id}_buttons_names', value=[message.text, ])
+        save_key_value(key=f'{message.chat.id}_buttons_names', value=[message.text])
 
     await message.answer('Отправь ссылку для кнопки')
     await state.set_state(FSM.get_button_url)
@@ -122,11 +123,12 @@ async def get_button_name(message: types.Message, state: FSMContext):
 
 @form_router.message(FSM.get_button_url)
 async def get_button_url(message: types.Message, state: FSMContext):
-    if r := get_data_from_key(key=f'{message.chat.id}_buttons_urls'):
+    r = get_data_from_key(key=f'{message.chat.id}_buttons_urls')
+    if type(r) == list:
         r.append(message.text)
         save_key_value(key=f'{message.chat.id}_buttons_urls', value=r)
     else:
-        save_key_value(key=f'{message.chat.id}_buttons_urls', value=message.text)
+        save_key_value(key=f'{message.chat.id}_buttons_urls', value=[message.text])
     await state.set_state(FSM.end_buttons)
     await message.answer('Будем добавлять ещё кнопки?', reply_markup=yes_no_keyboard)
 
@@ -169,8 +171,12 @@ async def will_add_tags(message: types.Message, state: FSMContext):
                              'Напишите число от 1 до 8', reply_markup=ReplyKeyboardRemove())
     elif message.text == '❌нет':
         save_key_value(f'{message.chat.id}_amount_of_tags', value=0)
-    await state.set_state(FSM.end)
-    await message.answer('Тегируем?', reply_markup=yes_no_keyboard)
+        await state.set_state(FSM.timer)
+        await message.answer('Отправь время, через которое нужно перезакреплять сообщения( в минутах). \n\n'
+                             'Можно написать целое число или через точку, например, 0.5',
+                             reply_markup=ReplyKeyboardRemove())
+    # await state.set_state(FSM.end)
+    # await message.answer('Тегируем?', reply_markup=yes_no_keyboard)
 
 
 @form_router.message(FSM.amount_of_tags)
@@ -187,7 +193,7 @@ async def amount_of_tags(message: types.Message, state: FSMContext):
         logger.error(e)
 
 
-@form_router.message(FSM.amount_of_tags)
+@form_router.message(FSM.tag_everyone)
 async def tag_everyone(message: types.Message, state: FSMContext):
     if message.text == 'Всех':
         save_key_value(f'{message.chat.id}_all_or_online_tags', value=0)
@@ -240,6 +246,8 @@ async def timer(message: types.Message, state: FSMContext):
     delete_by_key(f'{message.chat.id}_amount_of_tags')
     delete_by_key(f'{message.chat.id}_all_or_online_tags')
     delete_by_key(f'{message.chat.id}_timer')
+    data = db.get_group_by_id(group_id=group_id)
+    logger.info(f'{data=}')
     await message.answer('Сообщение добавлено в работу')
     await message.answer('В данный момент функция не работает, скоро исправлю')
     # await work_with_message(group_id=group_id)
