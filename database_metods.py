@@ -44,6 +44,7 @@ class Database:
     def leaved_a_group(self, group_id):
         with self.lock:
             self.cur.execute("""DELETE FROM groups WHERE group_id = ?""", (group_id,))
+            self.conn.commit()
 
     def set_lock(self, group_id, lock):
         with self.lock:
@@ -73,7 +74,8 @@ class Database:
                    WHERE group_id = ?
                """, (lock, message_text, message_photo_id, buttons, will_pin,
                      delete_previous_messages, will_add_tags, amount_of_tags, tag_everyone,
-                     currently_in_use, group_id, timer))
+                     currently_in_use, timer, group_id))
+            self.conn.commit()
 
     def get_all_groups(self):
         with self.lock:
