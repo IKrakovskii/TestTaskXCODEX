@@ -4,5 +4,5 @@
 # ADMIN_TG_USER_ID = ['id админа №1', 'id админа №2']
 # перед использованием убрать # у TOKEN и ADMIN_TG_USER_ID
 
-TOKEN = '6654710163:AAFTGt7Xs_rBtfzd4kYGONRMhZBu1NJAQwM'
+TOKEN = '6456334677:AAFyanBs_n_7NDIMzwEU39E_n7Y6uCzGOII'
 ADMIN_TG_USER_ID = ['351162658']

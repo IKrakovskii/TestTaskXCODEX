@@ -10,30 +10,31 @@ class Database:
         self.cur = self.conn.cursor()
         self.lock = threading.Lock()
 
-        self.cur.execute('''
-        CREATE TABLE IF NOT EXISTS groups(
-        group_id TEXT,
-        currently_in_use INTEGER,
-        group_name TEXT,
-        message_text TEXT,
-        message_photo_id TEXT,
-        buttons TEXT,
-        will_pin INTEGER,
-        delete_previous_messages INTEGER,
-        will_add_tags INEGER,
-        amount_of_tags INTEGER,
-        tag_everyone INTEGER,
-        lock INTEGER,
-        timer REAL
-        
-        )
-         ''')
+
+    def create_admin_table(self, table_name):
+        self.cur.execute(f'''
+                CREATE TABLE IF NOT EXISTS table_{table_name}(
+                group_id TEXT,
+                currently_in_use INTEGER,
+                group_name TEXT,
+                message_text TEXT,
+                message_photo_id TEXT,
+                buttons TEXT,
+                will_pin INTEGER,
+                delete_previous_messages INTEGER,
+                will_add_tags INTEGER,
+                amount_of_tags INTEGER,
+                tag_everyone INTEGER,
+                lock INTEGER,
+                timer REAL
+
+                )''')
         self.conn.commit()
 
-    def joined_a_group(self, group_id, group_name):
+    def joined_a_group(self, table_name, group_id, group_name):
         with self.lock:
-            self.cur.execute('''
-            INSERT INTO groups (
+            self.cur.execute(f'''
+            INSERT INTO table_{table_name} (
             group_id, group_name,lock, message_text, message_photo_id,
              buttons, will_pin, delete_previous_messages, will_add_tags,
               amount_of_tags, tag_everyone, currently_in_use, timer
@@ -42,24 +43,25 @@ class Database:
                              (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0))
             self.conn.commit()
 
-    def leaved_a_group(self, group_id):
+    def leaved_a_group(self, table_name, group_id):
         with self.lock:
-            self.cur.execute("""DELETE FROM groups WHERE group_id = ?""", (group_id,))
+            self.cur.execute(f"""DELETE FROM table_{table_name} WHERE group_id = ?""", (group_id,))
             self.conn.commit()
 
-    def set_lock(self, group_id, lock):
+    def set_lock(self, table_name, group_id, lock):
         with self.lock:
-            self.conn.execute("""UPDATE groups SET lock = ? WHERE group_id = ?""", (lock, group_id))
+            self.conn.execute(f"""UPDATE table_{table_name} SET lock = ? WHERE group_id = ?""",
+                              (lock, group_id))
             self.conn.commit()
 
-    def add_all_params(self, group_id: str, lock: int, message_text: str,
+    def add_all_params(self, table_name, group_id: str, lock: int, message_text: str,
                        message_photo_id: str, buttons: str, will_pin: int,
                        delete_previous_messages: int, will_add_tags: int,
                        amount_of_tags: int, tag_everyone: int,
                        currently_in_use: int, timer: float):
         with self.lock:
-            self.cur.execute("""
-                   UPDATE groups
+            self.cur.execute(f"""
+                   UPDATE table_{table_name}
                    SET 
                        lock = ?,
                        message_text = ?,
@@ -78,9 +80,9 @@ class Database:
                      currently_in_use, timer, group_id))
             self.conn.commit()
 
-    def get_all_groups(self):
+    def get_all_groups(self, table_name):
         with self.lock:
-            rows = self.conn.execute("SELECT * FROM groups").fetchall()
+            rows = self.conn.execute(f"SELECT * FROM table_{table_name}").fetchall()
 
         groups = []
         for row in rows:
@@ -103,10 +105,10 @@ class Database:
 
         return groups
 
-    def get_group_by_id(self, group_id):
+    def get_group_by_id(self, table_name, group_id):
         with self.lock:
             row = self.conn.execute(
-                "SELECT * FROM groups WHERE group_id = ?", (group_id,)
+                f"SELECT * FROM table_{table_name} WHERE group_id = ?", (group_id,)
             ).fetchone()
             if row:
                 group = {

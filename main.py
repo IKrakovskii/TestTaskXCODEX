@@ -59,24 +59,28 @@ class FSM_STOP(StatesGroup):
 @form_router.message(Command('start'))
 @logger.catch
 async def cmd_start(message: types.Message):
-    if is_private(message):
+    if is_private(message) and is_admin(message):
+        db.create_admin_table(table_name=message.from_user.id)
         await message.reply("Привет! Я бот для периодического закрепления сообщений.\n\nкоманда для закрепления "
                             "сообщений /add")
+    else:
+        await message.answer('К сожалению, это приватный бот')
 
 
 @form_router.message(Command('add'))
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
-    if not is_admin(message):
+    if is_admin(message) and is_private(message):
+
+        delete_cache(message)
+        builder = []
+        for i in db.get_all_groups(table_name=message.from_user.id):
+            builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
+        kb = InlineKeyboardMarkup(inline_keyboard=builder)
+        await message.answer('Выбери группу', reply_markup=kb)
+        await state.set_state(FSM.get_group)
+    else:
         await message.answer('Вы не являетесь администратором')
-        return
-    delete_cache(message)
-    builder = []
-    for i in db.get_all_groups():
-        builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
-    kb = InlineKeyboardMarkup(inline_keyboard=builder)
-    await message.answer('Выбери группу', reply_markup=kb)
-    await state.set_state(FSM.get_group)
 
 
 @form_router.callback_query(FSM.get_group)
@@ -239,6 +243,7 @@ async def timer(message: types.Message, state: FSMContext):
         buttons = None
 
     db.add_all_params(
+        table_name=message.from_user.id,
         group_id=get_data_from_key(f'{message.chat.id}_group_id'),
         lock=0,
         message_text=get_data_from_key(f'{message.chat.id}_caption_text'),
@@ -255,13 +260,13 @@ async def timer(message: types.Message, state: FSMContext):
     delete_cache(message)
 
     await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
-    await work_with_message(group_id=group_id)
+    await work_with_message(group_id=group_id, table_name=message.from_user.id)
 
 
 @logger.catch
-async def work_with_message(group_id):
+async def work_with_message(group_id, table_name):
     while True:
-        data = db.get_group_by_id(group_id=group_id)
+        data = db.get_group_by_id(group_id=group_id, table_name=table_name)
         if not data["currently_in_use"]:
             break
 
@@ -327,7 +332,7 @@ async def stop(message: types.Message, state: FSMContext):
         return
     delete_cache(message)
     builder = []
-    for i in db.get_all_groups():
+    for i in db.get_all_groups(table_name=message.from_user.id):
         builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
     kb = InlineKeyboardMarkup(inline_keyboard=builder)
     await message.answer('Выбери группу', reply_markup=kb)
@@ -337,34 +342,41 @@ async def stop(message: types.Message, state: FSMContext):
 @form_router.callback_query(FSM_STOP.get_group)
 @logger.catch
 async def get_and_stop_group(c_query: types.CallbackQuery, state: FSMContext):
-    data = db.get_group_by_id(c_query.data)
-    db.leaved_a_group(data["group_id"])
-    db.joined_a_group(group_id=data["group_id"], group_name=data["group_name"])
+    data = db.get_group_by_id(group_id=c_query.data, table_name=c_query.from_user.id)
+    db.leaved_a_group(group_id=data["group_id"], table_name=c_query.from_user.id)
+    db.joined_a_group(group_id=data["group_id"], group_name=data["group_name"], table_name=c_query.from_user.id)
     await state.clear()
-    await bot.send_message(chat_id=c_query.message.chat.id,
+    await bot.send_message(chat_id=c_query.from_user.id,
                            text='Работа с сообщением приостановлена')
 
 
 @form_router.message()
 @logger.catch
 async def add_remove_group(message: types.Message):
-
     if message.new_chat_members is not None:
         get_me_coro = await bot.get_me()
         bots_username = get_me_coro.username
         usernames = [i.username for i in message.new_chat_members]
         if bots_username in usernames:
             if message.chat.type == 'supergroup':
-                db.joined_a_group(group_id=message.chat.id, group_name=f'@{message.chat.username}')
+                db.joined_a_group(
+                    group_id=message.chat.id,
+                    group_name=f'@{message.chat.username}',
+                    table_name=message.from_user.id)
             else:
-                db.joined_a_group(group_id=message.chat.id, group_name=message.chat.title)
+                db.joined_a_group(
+                    group_id=message.chat.id,
+                    group_name=message.chat.title,
+                    table_name=message.from_user.id
+                )
 
-    if message.left_chat_member is not None:
+    elif message.left_chat_member is not None:
         get_me_coro = await bot.get_me()
         bots_username = get_me_coro.username
 
         if bots_username == message.left_chat_member.username:
-            db.leaved_a_group(group_id=message.chat.id)
+            logger.info(message.from_user.id)
+            db.leaved_a_group(group_id=message.chat.id, table_name=message.from_user.id)
 
     if message.chat.type == 'private':
         await message.reply('Команда не распознана')
