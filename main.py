@@ -38,6 +38,7 @@ def is_private(message: types.Message):
 # endregion
 class FSM(StatesGroup):
     get_group = State()
+    use_old_settings = State()
     get_message = State()
     start_buttons = State()
     get_button_name = State()
@@ -86,9 +87,84 @@ async def add_group(message: types.Message, state: FSMContext):
 @form_router.callback_query(FSM.get_group)
 @logger.catch
 async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
-    save_key_value(key=f'{c_query.message.chat.id}_group_id', value=c_query.data)
+    save_key_value(key=f'{c_query.from_user.id}_group_id', value=c_query.data)
     await state.set_state(FSM.get_message)
-    await bot.send_message(chat_id=c_query.message.chat.id, text='Отправь/перешли мне сообщение')
+    data = db.get_group_by_id(group_id=c_query.data, table_name=c_query.from_user.id)
+    if data['save']:
+        await bot.send_message(chat_id=c_query.message.chat.id,
+                               text='У вас есть сохранённое сообщение для данной группы:')
+        chat_id = data["group_id"]
+        message_text = data["message_text"]
+        message_photo_id = data["message_photo_id"] if data["message_photo_id"] != '' or data[
+            "message_photo_id"] is not None else None
+        buttons = data["buttons"]
+        will_pin = bool(data["will_pin"])
+        delete_previous_messages = bool(data["delete_previous_messages"])
+        will_add_tags = bool(data["will_add_tags"])
+        amount_of_tags = int(data["amount_of_tags"])
+        tag_everyone = bool(data["tag_everyone"])
+        timer = float(data["timer"])
+
+        await bot.send_message(chat_id=c_query.message.chat.id,
+                               text=f'Сообщение {"будет" if will_pin else "не будет"} закрепляться\n\n'
+                                    f'{"Будут" if delete_previous_messages else "Не будут"} '
+                                    f'удаляться предыдущие сообщения\n\n'
+                                    f'{"Будут" if will_add_tags else "Не будут"} создаваться таги\n\n'
+                                    f'За 1 раз будет упоминаться {amount_of_tags} людей\n\n'
+                                    f'Буду тегаться {"все" if tag_everyone else "только кто в онлайн"}\n\n'
+                                    f'Задержка между сообщениями будет {timer} минут'
+                               )
+        if buttons == '' or buttons is None:
+            keyboard = None
+        else:
+            builder = []
+            for button in buttons:
+                builder.append([InlineKeyboardButton(text=button["name"], url=button['url'])])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=builder)
+
+        if message_photo_id is None or message_photo_id == '':
+            await bot.send_message(chat_id=c_query.message.chat.id,
+                                   text=f'{message_text}\n{" "}',
+                                   parse_mode="MarkdownV2",
+                                   reply_markup=keyboard)
+        else:
+            await bot.send_photo(photo=message_photo_id,
+                                 chat_id=c_query.message.chat.id,
+                                 caption=f'{message_text}\n{" "}',
+                                 parse_mode="MarkdownV2",
+                                 reply_markup=keyboard)
+            await state.set_state(FSM.use_old_settings)
+            await bot.send_message(chat_id=c_query.message.chat.id,
+                                   text='Используем это сообщение?',
+                                   reply_markup=yes_no_keyboard)
+            await state.set_state(FSM.use_old_settings)
+    else:
+        await bot.send_message(chat_id=c_query.message.chat.id, text='Отправь/перешли мне сообщение')
+
+
+@form_router.message(FSM.use_old_settings)
+@logger.catch
+async def use_old_settings(message: types.Message, state: FSMContext):
+    group_id = get_data_from_key(f'{message.from_user.id}_group_id')
+    if message.text == '✅Да':
+        db.run_send_messages(table_name=message.from_user.id, group_id=group_id)
+        await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
+        await work_with_message(group_id=group_id, table_name=message.from_user.id)
+    else:
+        kb = [
+            [
+                KeyboardButton(text='✅Продолжить')
+            ]
+        ]
+        keyboard = ReplyKeyboardMarkup(
+            keyboard=kb,
+            resize_keyboard=True,
+            one_time_keyboard=True
+        )
+        await state.set_state(FSM.get_group)
+
+        db.set_remove(table_name=message.from_user.id, group_id=group_id)
+        await bot.send_message(chat_id=message.chat.id, text='Старые настройки удалены', reply_markup=keyboard)
 
 
 @form_router.message(FSM.get_message)
@@ -244,7 +320,7 @@ async def timer(message: types.Message, state: FSMContext):
 
     db.add_all_params(
         table_name=message.from_user.id,
-        group_id=get_data_from_key(f'{message.chat.id}_group_id'),
+        group_id=get_data_from_key(f'{message.from_user.id}_group_id'),
         lock=0,
         message_text=get_data_from_key(f'{message.chat.id}_caption_text'),
         message_photo_id=get_data_from_key(f'{message.chat.id}_message_photo'),
@@ -256,7 +332,10 @@ async def timer(message: types.Message, state: FSMContext):
         tag_everyone=not get_data_from_key(f'{message.chat.id}_all_or_online_tags'),
         currently_in_use=1,
         timer=get_data_from_key(f'{message.chat.id}_timer'))
-    group_id = get_data_from_key(f'{message.chat.id}_group_id')
+    db.set_save(
+        table_name=message.from_user.id, group_id=get_data_from_key(f'{message.from_user.id}_group_id')
+    )
+    group_id = get_data_from_key(f'{message.from_user.id}_group_id')
     delete_cache(message)
 
     await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
@@ -283,13 +362,13 @@ async def work_with_message(group_id, table_name):
         timer = float(data["timer"])
 
         if will_add_tags:
-            tags = await get_members_usernames(chat_id=chat_id, is_online=(not tag_everyone))
+            tags = await get_members_ids(chat_id=chat_id, is_online=(not tag_everyone))
             await asyncio.sleep(1)
             if tags is None:
                 tags = ['test']
             for i in range(amount_of_tags - len(tags)):
                 tags.append('test')
-            tags_string = '\n' + ''.join([f'[ ᅠ ]({tag})' for tag in random.sample(tags, amount_of_tags)])
+            tags_string = '\n' + ''.join([f'[ ᅠ ](tg://user?id={tag})' for tag in random.sample(tags, amount_of_tags)])
         else:
             tags_string = ''
 
@@ -343,8 +422,9 @@ async def stop(message: types.Message, state: FSMContext):
 @logger.catch
 async def get_and_stop_group(c_query: types.CallbackQuery, state: FSMContext):
     data = db.get_group_by_id(group_id=c_query.data, table_name=c_query.from_user.id)
-    db.leaved_a_group(group_id=data["group_id"], table_name=c_query.from_user.id)
-    db.joined_a_group(group_id=data["group_id"], group_name=data["group_name"], table_name=c_query.from_user.id)
+    db.stop_send_messages(table_name=c_query.from_user.id, group_id=data["group_id"])
+    # db.leaved_a_group(group_id=data["group_id"], table_name=c_query.from_user.id)
+    # db.joined_a_group(group_id=data["group_id"], group_name=data["group_name"], table_name=c_query.from_user.id)
     await state.clear()
     await bot.send_message(chat_id=c_query.from_user.id,
                            text='Работа с сообщением приостановлена')

@@ -10,7 +10,6 @@ class Database:
         self.cur = self.conn.cursor()
         self.lock = threading.Lock()
 
-
     def create_admin_table(self, table_name):
         self.cur.execute(f'''
                 CREATE TABLE IF NOT EXISTS table_{table_name}(
@@ -26,21 +25,23 @@ class Database:
                 amount_of_tags INTEGER,
                 tag_everyone INTEGER,
                 lock INTEGER,
-                timer REAL
+                timer REAL,
+                save INTEGER
 
                 )''')
         self.conn.commit()
 
     def joined_a_group(self, table_name, group_id, group_name):
+        self.create_admin_table(table_name=table_name)
         with self.lock:
             self.cur.execute(f'''
             INSERT INTO table_{table_name} (
             group_id, group_name,lock, message_text, message_photo_id,
              buttons, will_pin, delete_previous_messages, will_add_tags,
-              amount_of_tags, tag_everyone, currently_in_use, timer
+              amount_of_tags, tag_everyone, currently_in_use, timer, save
               )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                             (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                             (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0, 0))
             self.conn.commit()
 
     def leaved_a_group(self, table_name, group_id):
@@ -52,6 +53,30 @@ class Database:
         with self.lock:
             self.conn.execute(f"""UPDATE table_{table_name} SET lock = ? WHERE group_id = ?""",
                               (lock, group_id))
+            self.conn.commit()
+
+    def set_save(self, table_name, group_id):
+        with self.lock:
+            self.conn.execute(f"""UPDATE table_{table_name} SET save = ? WHERE group_id = ?""",
+                              (1, group_id))
+            self.conn.commit()
+
+    def set_remove(self, table_name, group_id):
+        with self.lock:
+            self.conn.execute(f"""UPDATE table_{table_name} SET save = ? WHERE group_id = ?""",
+                              (0, group_id))
+            self.conn.commit()
+
+    def stop_send_messages(self, table_name, group_id):
+        with self.lock:
+            self.conn.execute(f"""UPDATE table_{table_name} SET currently_in_use = ? WHERE group_id = ?""",
+                              (0, group_id))
+            self.conn.commit()
+
+    def run_send_messages(self, table_name, group_id):
+        with self.lock:
+            self.conn.execute(f"""UPDATE table_{table_name} SET currently_in_use = ? WHERE group_id = ?""",
+                              (1, group_id))
             self.conn.commit()
 
     def add_all_params(self, table_name, group_id: str, lock: int, message_text: str,
@@ -124,7 +149,8 @@ class Database:
                     "amount_of_tags": row[9],
                     "tag_everyone": bool(row[10]),
                     "lock": row[11],
-                    "timer": max(0.5, float(row[12]))
+                    "timer": max(0.5, float(row[12])),
+                    "save": bool(row[13])
                 }
             else:
                 group = None

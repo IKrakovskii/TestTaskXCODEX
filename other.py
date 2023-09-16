@@ -53,21 +53,17 @@ def delete_cache(message: types.Message):
 
 
 @logger.catch
-async def get_members_usernames(chat_id, is_online):
+async def get_members_ids(chat_id, is_online):
     app = Client(name="my_bot", bot_token=TOKEN)
     await app.start()
     chat_members = []
     async for member in app.get_chat_members(int(chat_id)):
-        usr_info = await app.get_chat_member(user_id=member.user.id, chat_id=chat_id)
-
-        user_name = usr_info.user.username
 
         if is_online:
-            if usr_info is not None and member.user.status == UserStatus.ONLINE:
-                chat_members.append(f'@{user_name}')
+            if member.user.status == UserStatus.ONLINE:
+                chat_members.append(member.user.id)
         else:
-            if usr_info is not None:
-                chat_members.append(f'@{user_name}')
+            chat_members.append(member.user.id)
 
     await app.stop()
     return chat_members
