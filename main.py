@@ -3,7 +3,10 @@
 import asyncio
 import os
 import random
+import re
 
+import aiogram
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from CONFIG import *
 from aiogram import Bot, Dispatcher, Router
@@ -37,6 +40,8 @@ def is_private(message: types.Message):
 
 # endregion
 class FSM(StatesGroup):
+    get_group_link = State()
+    get_group_name = State()
     get_group = State()
     use_old_settings = State()
     get_message = State()
@@ -77,6 +82,7 @@ async def add_group(message: types.Message, state: FSMContext):
         builder = []
         for i in db.get_all_groups(table_name=message.from_user.id):
             builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
+        builder.append([InlineKeyboardButton(text='➕Добавить новую группу', callback_data='new_group')])
         kb = InlineKeyboardMarkup(inline_keyboard=builder)
         await message.answer('Выбери группу', reply_markup=kb)
         await state.set_state(FSM.get_group)
@@ -87,12 +93,20 @@ async def add_group(message: types.Message, state: FSMContext):
 @form_router.callback_query(FSM.get_group)
 @logger.catch
 async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
+    if c_query.data == 'new_group':
+        await state.set_state(FSM.get_group_link)
+        await bot.send_message(
+            chat_id=c_query.message.chat.id,
+            text='Отправь мне ссылку на любое сообщение из группы, которую ты хочешь добавить'
+        )
+        return
+
     save_key_value(key=f'{c_query.from_user.id}_group_id', value=c_query.data)
-    await state.set_state(FSM.get_message)
     data = db.get_group_by_id(group_id=c_query.data, table_name=c_query.from_user.id)
     if data['save']:
         await bot.send_message(chat_id=c_query.message.chat.id,
                                text='У вас есть сохранённое сообщение для данной группы:')
+        await asyncio.sleep(0.3)
         chat_id = data["group_id"]
         message_text = data["message_text"]
         message_photo_id = data["message_photo_id"] if data["message_photo_id"] != '' or data[
@@ -104,7 +118,6 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
         amount_of_tags = int(data["amount_of_tags"])
         tag_everyone = bool(data["tag_everyone"])
         timer = float(data["timer"])
-
         await bot.send_message(chat_id=c_query.message.chat.id,
                                text=f'Сообщение {"будет" if will_pin else "не будет"} закрепляться\n\n'
                                     f'{"Будут" if delete_previous_messages else "Не будут"} '
@@ -121,7 +134,6 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
             for button in buttons:
                 builder.append([InlineKeyboardButton(text=button["name"], url=button['url'])])
             keyboard = InlineKeyboardMarkup(inline_keyboard=builder)
-
         if message_photo_id is None or message_photo_id == '':
             await bot.send_message(chat_id=c_query.message.chat.id,
                                    text=f'{message_text}\n{" "}',
@@ -133,13 +145,57 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
                                  caption=f'{message_text}\n{" "}',
                                  parse_mode="MarkdownV2",
                                  reply_markup=keyboard)
-            await state.set_state(FSM.use_old_settings)
-            await bot.send_message(chat_id=c_query.message.chat.id,
-                                   text='Используем это сообщение?',
-                                   reply_markup=yes_no_keyboard)
-            await state.set_state(FSM.use_old_settings)
+        await state.set_state(FSM.use_old_settings)
+        await bot.send_message(chat_id=c_query.message.chat.id,
+                               text='Используем это сообщение?',
+                               reply_markup=yes_no_keyboard)
     else:
+        await state.set_state(FSM.get_message)
         await bot.send_message(chat_id=c_query.message.chat.id, text='Отправь/перешли мне сообщение')
+
+
+@form_router.message(FSM.get_group_link)
+@logger.catch
+async def get_group_link(message: types.Message, state: FSMContext):
+    data = str(message.text).split('/')
+    if len(data) < 2:
+        await message.reply('неправильная ссылка!')
+        return
+    try:
+        if data[3] == 'c':
+            chat_id, message_id = f'-100{data[4]}', data[-1]
+        else:
+            chat_id, message_id = f'-100{data[3]}', data[-1]
+        group_name = None
+        save_key_value(key=f'{message.from_user.id}_new_group_id', value=chat_id)
+    except IndexError:
+        await message.reply('Неправильная ссылка')
+        return
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        chat_id = f"{chat_id.replace('-100', '')}"
+        group_name = f'@{chat_id}'
+    except Exception as e:
+        logger.error(e)
+    if group_name is not None:
+        db.joined_a_group(table_name=message.from_user.id, group_id=chat_id, group_name=group_name)
+        await state.clear()
+        await message.answer('Группа добавлена, чтобы добавить сообщение, отправь мне команду /add')
+    else:
+        await state.set_state(FSM.get_group_name)
+        await message.answer('Отправь мне название для группы')
+
+
+@form_router.message(FSM.get_group_name)
+@logger.catch
+async def get_group_name(message: types.Message, state: FSMContext):
+    group_id = get_data_from_key(key=f'{message.from_user.id}_new_group_id')
+    delete_by_key(key=f'{message.from_user.id}_new_group_id')
+    group_name = message.text
+    db.joined_a_group(table_name=message.from_user.id, group_id=group_id, group_name=group_name)
+    await state.clear()
+    await message.answer('Группа добавлена, чтобы добавить сообщение, отправь мне команду /add')
 
 
 @form_router.message(FSM.use_old_settings)
@@ -148,8 +204,9 @@ async def use_old_settings(message: types.Message, state: FSMContext):
     group_id = get_data_from_key(f'{message.from_user.id}_group_id')
     if message.text == '✅Да':
         db.run_send_messages(table_name=message.from_user.id, group_id=group_id)
+        await state.clear()
         await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
-        await work_with_message(group_id=group_id, table_name=message.from_user.id)
+        asyncio.create_task(work_with_message(group_id=group_id, table_name=message.from_user.id))
     else:
         kb = [
             [
@@ -162,9 +219,10 @@ async def use_old_settings(message: types.Message, state: FSMContext):
             one_time_keyboard=True
         )
         await state.set_state(FSM.get_group)
-
         db.set_remove(table_name=message.from_user.id, group_id=group_id)
-        await bot.send_message(chat_id=message.chat.id, text='Старые настройки удалены', reply_markup=keyboard)
+        await bot.send_message(chat_id=message.chat.id, text='Старые настройки удалены')
+        await state.set_state(FSM.get_message)
+        await bot.send_message(chat_id=message.chat.id, text='Отправь/перешли мне сообщение')
 
 
 @form_router.message(FSM.get_message)
@@ -208,6 +266,9 @@ async def get_button_name(message: types.Message, state: FSMContext):
 @form_router.message(FSM.get_button_url)
 @logger.catch
 async def get_button_url(message: types.Message, state: FSMContext):
+    if not re.match(r'^https?://', message.text):
+        await message.answer('Отправь правильную ссылку в формате\n\nhttps://www.example.com')
+        return
     r = get_data_from_key(key=f'{message.chat.id}_buttons_urls')
     if type(r) == list:
         r.append(message.text)
@@ -339,7 +400,8 @@ async def timer(message: types.Message, state: FSMContext):
     delete_cache(message)
 
     await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
-    await work_with_message(group_id=group_id, table_name=message.from_user.id)
+    # asyncio.run(work_with_message(group_id=group_id, table_name=message.from_user.id))
+    asyncio.create_task(work_with_message(group_id=group_id, table_name=message.from_user.id))
 
 
 @logger.catch
@@ -379,18 +441,22 @@ async def work_with_message(group_id, table_name):
             for button in buttons:
                 builder.append([InlineKeyboardButton(text=button["name"], url=button['url'])])
             keyboard = InlineKeyboardMarkup(inline_keyboard=builder)
+        try:
+            if message_photo_id is None:
+                result = await bot.send_message(chat_id=chat_id,
+                                                text=f'{message_text}\n{tags_string}',
+                                                parse_mode="MarkdownV2",
+                                                reply_markup=keyboard)
+            else:
+                result = await bot.send_photo(photo=message_photo_id,
+                                              chat_id=chat_id,
+                                              caption=f'{message_text}\n{tags_string}',
+                                              parse_mode="MarkdownV2",
+                                              reply_markup=keyboard)
+        except aiogram.exceptions.TelegramForbiddenError:
+            await bot.send_message(chat_id=table_name, text='Я не состою в этой группе')
+            return
 
-        if message_photo_id is None:
-            result = await bot.send_message(chat_id=chat_id,
-                                            text=f'{message_text}\n{tags_string}',
-                                            parse_mode="MarkdownV2",
-                                            reply_markup=keyboard)
-        else:
-            result = await bot.send_photo(photo=message_photo_id,
-                                          chat_id=chat_id,
-                                          caption=f'{message_text}\n{tags_string}',
-                                          parse_mode="MarkdownV2",
-                                          reply_markup=keyboard)
         if will_pin:
             await bot.pin_chat_message(chat_id=chat_id, message_id=result.message_id)
 
@@ -442,7 +508,8 @@ async def add_remove_group(message: types.Message):
                 db.joined_a_group(
                     group_id=message.chat.id,
                     group_name=f'@{message.chat.username}',
-                    table_name=message.from_user.id)
+                    table_name=message.from_user.id
+                )
             else:
                 db.joined_a_group(
                     group_id=message.chat.id,
@@ -455,7 +522,6 @@ async def add_remove_group(message: types.Message):
         bots_username = get_me_coro.username
 
         if bots_username == message.left_chat_member.username:
-            logger.info(message.from_user.id)
             db.leaved_a_group(group_id=message.chat.id, table_name=message.from_user.id)
 
     if message.chat.type == 'private':

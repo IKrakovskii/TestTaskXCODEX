@@ -1,6 +1,7 @@
 import shelve
 from typing import Any
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from loguru import logger
 from pyrogram import Client
@@ -56,9 +57,14 @@ def delete_cache(message: types.Message):
 async def get_members_ids(chat_id, is_online):
     app = Client(name="my_bot", bot_token=TOKEN)
     await app.start()
-    chat_members = []
-    async for member in app.get_chat_members(int(chat_id)):
 
+    try:
+        chat_id = int(chat_id)
+    except ValueError:
+        chat_id = await app.get_chat(chat_id)
+        chat_id = int(chat_id.id)
+    chat_members = []
+    async for member in app.get_chat_members(chat_id):
         if is_online:
             if member.user.status == UserStatus.ONLINE:
                 chat_members.append(member.user.id)
@@ -92,3 +98,12 @@ all_or_online_keyboard = ReplyKeyboardMarkup(
     resize_keyboard=True,
     one_time_keyboard=True
 )
+
+
+async def bot_consist_in_group(bot, group_id):
+    try:
+        get_me = await bot.get_me()
+        r = await bot.get_chat_member(group_id, get_me.id)
+        return True
+    except TelegramBadRequest:
+        return False
