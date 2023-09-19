@@ -57,8 +57,12 @@ async def other(message: Message):
     # for i in message:
     #     print(f'{i}')
     # print(f'\n{"_"*20}\n')
-    logger.debug(f'{message.md_text=}')
-    await message.answer('Спасибо')
+    # logger.debug(f'{message=}')
+    # await message.answer('Спасибо')
+    for el in message:
+        print(el)
+
+
 async def main():
     await dp.start_polling(bot)
 

@@ -1,22 +1,20 @@
 # region Импорты и константы
-import _pickle as cp
 import asyncio
 import os
 import random
 import re
 
-import aiogram
-from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
-from CONFIG import *
 from aiogram import Bot, Dispatcher, Router
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.filters import Command
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 
+from CONFIG import *
 from database_metods import Database
 from other import *
 
+# class Telegram_Bot:
 form_router = Router()
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -25,6 +23,7 @@ dp.include_router(form_router)
 db = Database()
 
 
+# form_router.message.register(cmd_start)
 @logger.catch
 def is_admin(message: types.Message):
     if type(ADMIN_TG_USER_ID) is list:
@@ -42,7 +41,6 @@ def is_private(message: types.Message):
 class FSM(StatesGroup):
     get_group_link = State()
     get_group_name = State()
-    choose = State()
     get_group = State()
     use_old_settings = State()
     get_message = State()
@@ -78,15 +76,18 @@ async def cmd_start(message: types.Message):
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
     if is_admin(message) and is_private(message):
-        await state.set_state(FSM.choose)
-        await message.answer('Выбери, что ты будешь делать', reply_markup=pin_or_repost_kb)
 
+        delete_cache(message)
+        builder = []
+        for i in db.get_all_groups(table_name=message.from_user.id):
+            builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
+        builder.append([InlineKeyboardButton(text='➕Добавить новую группу', callback_data='new_group')])
+        kb = InlineKeyboardMarkup(inline_keyboard=builder)
+        await message.answer('Выбери группу', reply_markup=kb)
+        await state.set_state(FSM.get_group)
     else:
         await message.answer('Вы не являетесь администратором')
 
-@form_router.message(FSM.choose)
-@logger.catch
-async def choose_group(message: types.Message, state: FSMContext):
 
 @form_router.callback_query(FSM.get_group)
 @logger.catch
@@ -279,7 +280,6 @@ async def use_old_settings(message: types.Message, state: FSMContext):
 @form_router.message(FSM.get_message)
 @logger.catch
 async def get_message(message: types.Message, state: FSMContext):
-
     save_key_value(key=f'{message.chat.id}_message', value=str(message.model_dump_json().encode("utf-8")))
     save_key_value(key=f'{message.chat.id}_caption_text', value=message.md_text)
     try:
@@ -636,8 +636,6 @@ async def add_remove_group(message: types.Message):
 
 @logger.catch
 def build_session():
-    if not os.path.exists('Database'):
-        os.makedirs('Database')
     if os.path.exists('my_bot.session'):
         print('Сессия существует')
     else:
