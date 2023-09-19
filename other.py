@@ -75,6 +75,19 @@ async def get_members_ids(chat_id, is_online):
     return chat_members
 
 
+@logger.catch
+async def get_chat_id(chat_username):
+    app = Client(name="my_bot", bot_token=TOKEN)
+    await app.start()
+    try:
+        chat_id = int(chat_username)
+    except ValueError:
+        chat_id = await app.get_chat(chat_username)
+        chat_id = int(chat_id.id)
+    await app.stop()
+    return chat_id
+
+
 kb = [
     [
         KeyboardButton(text='✅Да'),
@@ -94,6 +107,18 @@ kb = [
     ]
 ]
 all_or_online_keyboard = ReplyKeyboardMarkup(
+    keyboard=kb,
+    resize_keyboard=True,
+    one_time_keyboard=True
+)
+
+kb = [
+    [
+        KeyboardButton(text='🔒Закрепить'),
+        KeyboardButton(text='🔁Репост')
+    ]
+]
+pin_or_repost_kb = ReplyKeyboardMarkup(
     keyboard=kb,
     resize_keyboard=True,
     one_time_keyboard=True

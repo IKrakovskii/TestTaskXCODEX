@@ -1,5 +1,5 @@
 # region Импорты и константы
-
+import _pickle as cp
 import asyncio
 import os
 import random
@@ -42,6 +42,7 @@ def is_private(message: types.Message):
 class FSM(StatesGroup):
     get_group_link = State()
     get_group_name = State()
+    choose = State()
     get_group = State()
     use_old_settings = State()
     get_message = State()
@@ -77,18 +78,15 @@ async def cmd_start(message: types.Message):
 @logger.catch
 async def add_group(message: types.Message, state: FSMContext):
     if is_admin(message) and is_private(message):
+        await state.set_state(FSM.choose)
+        await message.answer('Выбери, что ты будешь делать', reply_markup=pin_or_repost_kb)
 
-        delete_cache(message)
-        builder = []
-        for i in db.get_all_groups(table_name=message.from_user.id):
-            builder.append([InlineKeyboardButton(text=i["group_name"], callback_data=i['group_id'])])
-        builder.append([InlineKeyboardButton(text='➕Добавить новую группу', callback_data='new_group')])
-        kb = InlineKeyboardMarkup(inline_keyboard=builder)
-        await message.answer('Выбери группу', reply_markup=kb)
-        await state.set_state(FSM.get_group)
     else:
         await message.answer('Вы не являетесь администратором')
 
+@form_router.message(FSM.choose)
+@logger.catch
+async def choose_group(message: types.Message, state: FSMContext):
 
 @form_router.callback_query(FSM.get_group)
 @logger.catch
@@ -118,6 +116,8 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
         amount_of_tags = int(data["amount_of_tags"])
         tag_everyone = bool(data["tag_everyone"])
         timer = float(data["timer"])
+        message_db = data['message']
+
         await bot.send_message(chat_id=c_query.message.chat.id,
                                text=f'Сообщение {"будет" if will_pin else "не будет"} закрепляться\n\n'
                                     f'{"Будут" if delete_previous_messages else "Не будут"} '
@@ -127,6 +127,8 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
                                     f'Буду тегаться {"все" if tag_everyone else "только кто в онлайн"}\n\n'
                                     f'Задержка между сообщениями будет {timer} минут'
                                )
+
+        # Кнопки
         if buttons == '' or buttons is None:
             keyboard = None
         else:
@@ -134,17 +136,66 @@ async def get_group_id(c_query: types.CallbackQuery, state: FSMContext):
             for button in buttons:
                 builder.append([InlineKeyboardButton(text=button["name"], url=button['url'])])
             keyboard = InlineKeyboardMarkup(inline_keyboard=builder)
-        if message_photo_id is None or message_photo_id == '':
-            await bot.send_message(chat_id=c_query.message.chat.id,
-                                   text=f'{message_text}\n{" "}',
-                                   parse_mode="MarkdownV2",
-                                   reply_markup=keyboard)
-        else:
-            await bot.send_photo(photo=message_photo_id,
-                                 chat_id=c_query.message.chat.id,
-                                 caption=f'{message_text}\n{" "}',
-                                 parse_mode="MarkdownV2",
-                                 reply_markup=keyboard)
+        message_text = message_db.md_text
+        if message_text == '':
+            message_text = None
+
+        if message_db.text is not None:  # DONE
+            result = await bot.send_message(chat_id=c_query.from_user.id,
+                                            text=message_text,
+                                            reply_markup=keyboard,
+                                            parse_mode="MarkdownV2"
+                                            )
+
+        elif message_db.photo is not None:  # DONE
+            await bot.send_photo(chat_id=c_query.from_user.id,
+                                 photo=message_db.photo[0].file_id,
+                                 caption=message_text,
+                                 reply_markup=keyboard,
+                                 parse_mode="MarkdownV2"
+                                 )
+
+        elif message_db.video_note is not None:  # DONE
+            result = await bot.send_video_note(chat_id=c_query.from_user.id,
+                                               video_note=message_db.video_note.file_id,
+                                               reply_markup=keyboard
+                                               )
+        elif message_db.animation is not None:  # DONE
+            result = await bot.send_animation(chat_id=c_query.from_user.id,
+                                              animation=message_db.animation.file_id,
+                                              caption=message_text,
+                                              reply_markup=keyboard,
+                                              parse_mode="MarkdownV2"
+                                              )
+        elif message_db.document is not None:  # DONE
+            result = await bot.send_document(chat_id=c_query.from_user.id,
+                                             document=message_db.document.file_id,
+                                             caption=message_text,
+                                             reply_markup=keyboard,
+                                             parse_mode="MarkdownV2"
+                                             )
+        elif message_db.video is not None:  # DONE
+            result = await bot.send_video(chat_id=c_query.from_user.id,
+                                          video=message_db.video.file_id,
+                                          caption=message_text,
+                                          reply_markup=keyboard,
+                                          parse_mode="MarkdownV2"
+                                          )
+        elif message_db.poll is not None:  # DONE
+
+            result = await bot.send_poll(chat_id=c_query.from_user.id,
+                                         question=message_db.poll.question,
+                                         options=[i.text for i in message_db.poll.options],
+                                         is_closed=message_db.poll.is_closed,
+                                         is_anonymous=message_db.poll.is_anonymous,
+                                         type=message_db.poll.type,
+                                         allows_multiple_answers=message_db.poll.allows_multiple_answers,
+                                         correct_option_id=message_db.poll.correct_option_id,
+                                         explanation=message_db.poll.explanation,
+                                         explanation_entities=message_db.poll.explanation_entities,
+                                         open_period=message_db.poll.open_period,
+                                         close_date=message_db.poll.close_date
+                                         )
         await state.set_state(FSM.use_old_settings)
         await bot.send_message(chat_id=c_query.message.chat.id,
                                text='Используем это сообщение?',
@@ -206,7 +257,7 @@ async def use_old_settings(message: types.Message, state: FSMContext):
         db.run_send_messages(table_name=message.from_user.id, group_id=group_id)
         await state.clear()
         await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
-        asyncio.create_task(work_with_message(group_id=group_id, table_name=message.from_user.id))
+        asyncio.create_task(work_with_message(chat_id=group_id, table_name=message.from_user.id))
     else:
         kb = [
             [
@@ -228,6 +279,8 @@ async def use_old_settings(message: types.Message, state: FSMContext):
 @form_router.message(FSM.get_message)
 @logger.catch
 async def get_message(message: types.Message, state: FSMContext):
+
+    save_key_value(key=f'{message.chat.id}_message', value=str(message.model_dump_json().encode("utf-8")))
     save_key_value(key=f'{message.chat.id}_caption_text', value=message.md_text)
     try:
         save_key_value(f'{message.chat.id}_message_photo', value=message.photo[0].file_id)
@@ -392,7 +445,8 @@ async def timer(message: types.Message, state: FSMContext):
         amount_of_tags=get_data_from_key(f'{message.chat.id}_amount_of_tags'),
         tag_everyone=not get_data_from_key(f'{message.chat.id}_all_or_online_tags'),
         currently_in_use=1,
-        timer=get_data_from_key(f'{message.chat.id}_timer'))
+        timer=get_data_from_key(f'{message.chat.id}_timer'),
+        message=get_data_from_key(f'{message.chat.id}_message'))
     db.set_save(
         table_name=message.from_user.id, group_id=get_data_from_key(f'{message.from_user.id}_group_id')
     )
@@ -401,20 +455,15 @@ async def timer(message: types.Message, state: FSMContext):
 
     await message.answer('Сообщение добавлено в работу, для остановки нажмите /stop')
     # asyncio.run(work_with_message(group_id=group_id, table_name=message.from_user.id))
-    asyncio.create_task(work_with_message(group_id=group_id, table_name=message.from_user.id))
+    asyncio.create_task(work_with_message(chat_id=group_id, table_name=message.from_user.id))
 
 
 @logger.catch
-async def work_with_message(group_id, table_name):
+async def work_with_message(chat_id, table_name):
+    group_id = await get_chat_id(chat_id)
     while True:
-        data = db.get_group_by_id(group_id=group_id, table_name=table_name)
-        if not data["currently_in_use"]:
-            break
 
-        chat_id = data["group_id"]
-        message_text = data["message_text"]
-        message_photo_id = data["message_photo_id"] if data["message_photo_id"] != '' or data[
-            "message_photo_id"] is not None else None
+        data = db.get_group_by_id(group_id=chat_id, table_name=table_name)
         buttons = data["buttons"]
         will_pin = bool(data["will_pin"])
         delete_previous_messages = bool(data["delete_previous_messages"])
@@ -422,18 +471,12 @@ async def work_with_message(group_id, table_name):
         amount_of_tags = int(data["amount_of_tags"])
         tag_everyone = bool(data["tag_everyone"])
         timer = float(data["timer"])
+        message = data["message"]
 
-        if will_add_tags:
-            tags = await get_members_ids(chat_id=chat_id, is_online=(not tag_everyone))
-            await asyncio.sleep(1)
-            if tags is None:
-                tags = ['test']
-            for i in range(amount_of_tags - len(tags)):
-                tags.append('test')
-            tags_string = '\n' + ''.join([f'[ ᅠ ](tg://user?id={tag})' for tag in random.sample(tags, amount_of_tags)])
-        else:
-            tags_string = ''
+        if not data["currently_in_use"]:
+            break
 
+        # Кнопки
         if buttons == '' or buttons is None:
             keyboard = None
         else:
@@ -441,32 +484,92 @@ async def work_with_message(group_id, table_name):
             for button in buttons:
                 builder.append([InlineKeyboardButton(text=button["name"], url=button['url'])])
             keyboard = InlineKeyboardMarkup(inline_keyboard=builder)
-        try:
-            if message_photo_id is None:
-                result = await bot.send_message(chat_id=chat_id,
-                                                text=f'{message_text}\n{tags_string}',
-                                                parse_mode="MarkdownV2",
-                                                reply_markup=keyboard)
-            else:
-                result = await bot.send_photo(photo=message_photo_id,
-                                              chat_id=chat_id,
-                                              caption=f'{message_text}\n{tags_string}',
-                                              parse_mode="MarkdownV2",
-                                              reply_markup=keyboard)
-        except aiogram.exceptions.TelegramForbiddenError:
-            await bot.send_message(chat_id=table_name, text='Я не состою в этой группе')
-            return
+
+        # Теги
+        if will_add_tags:
+            tags = await get_members_ids(chat_id=group_id, is_online=(not tag_everyone))
+            await asyncio.sleep(1)
+            if tags is None:
+                tags = ['test']
+            for i in range(amount_of_tags - len(tags)):
+                tags.append('test')
+            tags_string = '\n' + ''.join([f'[ ᅠ ](tg://user?id={tag})' for tag in random.sample(tags, amount_of_tags)])
+
+        else:
+            tags_string = ''
+
+        # Текст сообщения с тегами
+        message_text = message.md_text + tags_string
+        if message_text == '':
+            message_text = None
+
+        if message.text is not None:
+            result = await bot.send_message(chat_id=group_id,
+                                            text=message_text,
+                                            reply_markup=keyboard,
+                                            parse_mode="MarkdownV2"
+                                            )
+
+        elif message.photo is not None:
+            await bot.send_photo(chat_id=group_id,
+                                 photo=message.photo[0].file_id,
+                                 caption=message_text,
+                                 reply_markup=keyboard,
+                                 parse_mode="MarkdownV2"
+                                 )
+
+        elif message.video_note is not None:
+            result = await bot.send_video_note(chat_id=group_id,
+                                               video_note=message.video_note.file_id,
+                                               reply_markup=keyboard
+                                               )
+        elif message.animation is not None:
+            result = await bot.send_animation(chat_id=group_id,
+                                              animation=message.animation.file_id,
+                                              caption=message_text,
+                                              reply_markup=keyboard,
+                                              parse_mode="MarkdownV2"
+                                              )
+        elif message.document is not None:
+            result = await bot.send_document(chat_id=group_id,
+                                             document=message.document.file_id,
+                                             caption=message_text,
+                                             reply_markup=keyboard,
+                                             parse_mode="MarkdownV2"
+                                             )
+        elif message.video is not None:
+            result = await bot.send_video(chat_id=group_id,
+                                          video=message.video.file_id,
+                                          caption=message_text,
+                                          reply_markup=keyboard,
+                                          parse_mode="MarkdownV2"
+                                          )
+        elif message.poll is not None:
+
+            result = await bot.send_poll(chat_id=group_id,
+                                         question=message.poll.question,
+                                         options=[i.text for i in message.poll.options],
+                                         is_closed=message.poll.is_closed,
+                                         is_anonymous=message.poll.is_anonymous,
+                                         type=message.poll.type,
+                                         allows_multiple_answers=message.poll.allows_multiple_answers,
+                                         correct_option_id=message.poll.correct_option_id,
+                                         explanation=message.poll.explanation,
+                                         explanation_entities=message.poll.explanation_entities,
+                                         open_period=message.poll.open_period,
+                                         close_date=message.poll.close_date
+                                         )
 
         if will_pin:
-            await bot.pin_chat_message(chat_id=chat_id, message_id=result.message_id)
+            await bot.pin_chat_message(chat_id=group_id, message_id=result.message_id)
 
         await asyncio.sleep(timer * 60)
 
         if will_pin:
-            await bot.unpin_chat_message(chat_id=chat_id, message_id=result.message_id)
+            await bot.unpin_chat_message(chat_id=group_id, message_id=result.message_id)
 
         if delete_previous_messages:
-            await bot.delete_message(chat_id=chat_id, message_id=result.message_id)
+            await bot.delete_message(chat_id=group_id, message_id=result.message_id)
 
 
 @form_router.message(Command('stop'))
@@ -533,6 +636,8 @@ async def add_remove_group(message: types.Message):
 
 @logger.catch
 def build_session():
+    if not os.path.exists('Database'):
+        os.makedirs('Database')
     if os.path.exists('my_bot.session'):
         print('Сессия существует')
     else:

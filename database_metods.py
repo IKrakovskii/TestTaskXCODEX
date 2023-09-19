@@ -1,5 +1,9 @@
+import ast
+import json
 import sqlite3
 import threading
+from aiogram import types
+
 from other import logger
 
 
@@ -26,6 +30,7 @@ class Database:
                 tag_everyone INTEGER,
                 lock INTEGER,
                 timer REAL,
+                message TEXT,
                 save INTEGER
 
                 )''')
@@ -38,10 +43,10 @@ class Database:
             INSERT INTO table_{table_name} (
             group_id, group_name,lock, message_text, message_photo_id,
              buttons, will_pin, delete_previous_messages, will_add_tags,
-              amount_of_tags, tag_everyone, currently_in_use, timer, save
+              amount_of_tags, tag_everyone, currently_in_use, timer, message, save
               )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                             (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0, 0))
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                             (group_id, group_name, 0, '', '', 'None', 0, 0, 0, 0, 0, 0, 0.0, b'', 0))
             self.conn.commit()
 
     def leaved_a_group(self, table_name, group_id):
@@ -83,7 +88,7 @@ class Database:
                        message_photo_id: str, buttons: str, will_pin: int,
                        delete_previous_messages: int, will_add_tags: int,
                        amount_of_tags: int, tag_everyone: int,
-                       currently_in_use: int, timer: float):
+                       currently_in_use: int, timer: float, message):
         with self.lock:
             self.cur.execute(f"""
                    UPDATE table_{table_name}
@@ -98,11 +103,12 @@ class Database:
                        amount_of_tags = ?,
                        tag_everyone = ?,
                        currently_in_use = ?,
+                       message = ?,
                        timer = ?
                    WHERE group_id = ?
                """, (lock, message_text, message_photo_id, buttons, will_pin,
                      delete_previous_messages, will_add_tags, amount_of_tags, tag_everyone,
-                     currently_in_use, timer, group_id))
+                     currently_in_use, message, timer, group_id))
             self.conn.commit()
 
     def get_all_groups(self, table_name):
@@ -124,7 +130,8 @@ class Database:
                 "amount_of_tags": row[9],
                 "tag_everyone": bool(row[10]),
                 "lock": bool(row[11]),
-                "timer": max(0.5, float(row[12]))
+                "timer": max(0.5, float(row[12])),
+                "message": types.Message.model_validate_json((eval(row[13]))) if row[13] != b'' else None
             }
             groups.append(group)
 
@@ -150,14 +157,9 @@ class Database:
                     "tag_everyone": bool(row[10]),
                     "lock": row[11],
                     "timer": max(0.5, float(row[12])),
-                    "save": bool(row[13])
+                    "message": types.Message.model_validate_json((eval(row[13]))) if row[13] != b'' else None,
+                    "save": bool(row[14])
                 }
             else:
                 group = None
         return group
-
-
-if __name__ == '__main__':
-    db = Database()
-    for i in db.get_all_groups():
-        print(i)
