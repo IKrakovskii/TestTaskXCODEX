@@ -511,6 +511,9 @@ async def timer(message: types.Message, state: FSMContext):
 @logger.catch
 async def work_with_message(chat_id, table_name):
     group_id = await get_chat_id(chat_id)
+    data = db.get_group_by_id(group_id=chat_id, table_name=table_name)
+
+    tags_list = await get_members_ids(chat_id=group_id, is_online=(not bool(data["tag_everyone"])))
     if get_data_from_key(f'{table_name}_is_repost'):
         while True:
             data = db.get_group_by_id(group_id=chat_id, table_name=table_name)
@@ -578,17 +581,24 @@ async def work_with_message(chat_id, table_name):
 
             # Теги
             if will_add_tags:
-                tags = await get_members_ids(chat_id=group_id, is_online=(not tag_everyone))
+                # tags = await get_members_ids(chat_id=group_id, is_online=(not tag_everyone))
                 await asyncio.sleep(1)
-                if tags is None:
+                if len(tags_list) <= amount_of_tags:
+                    tags_list = await get_members_ids(chat_id=group_id, is_online=(not tag_everyone))
+                if tags_list is None:
                     tags = ['test']
-                for i in range(amount_of_tags - len(tags)):
-                    tags.append('test')
+                for i in range(amount_of_tags - len(tags_list)):
+                    tags_list.append('test')
+                tags = random.sample(tags_list, amount_of_tags)
+                for i in tags:
+                    tags_list.remove(i)
                 tags_string = '\n' + ''.join(
-                    [f'[ ᅠ ](tg://user?id={tag})' for tag in random.sample(tags, amount_of_tags)])
+                    [f'[ ᅠ ](tg://user?id={tag})' for tag in tags])
 
             else:
                 tags_string = ''
+
+            logger.info(f'{tags_string=}')
 
             # Текст сообщения с тегами
             message_text = message.md_text + tags_string
