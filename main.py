@@ -524,15 +524,7 @@ async def work_with_message(chat_id, table_name):
 
             if not data["currently_in_use"]:
                 break
-            # if message.forward_from_chat.id is None:
-            #     if message.forward
-            # for i in message:
-            #     print(f'{i}')
-            # logger.info(f'{message=}')
-            # logger.info(f'{group_id=}')
-            # logger.info(f'{message.forward_from_chat.id=}')
-            # logger.info(f'{message.forward_from_message_id=}')
-            # time.sleep(20)
+
             try:
                 result = await bot.forward_message(chat_id=int(group_id),
                                                    from_chat_id=int(message.forward_from_chat.id),
@@ -598,7 +590,6 @@ async def work_with_message(chat_id, table_name):
             else:
                 tags_string = ''
 
-            logger.info(f'{tags_string=}')
 
             # Текст сообщения с тегами
             message_text = message.md_text + tags_string
@@ -710,8 +701,6 @@ async def get_and_stop_group(c_query: types.CallbackQuery, state: FSMContext):
 @form_router.message()
 @logger.catch
 async def add_remove_group(message: types.Message):
-    for i in message:
-        print(i)
     if message.new_chat_members is not None:
         get_me_coro = await bot.get_me()
         bots_username = get_me_coro.username
