@@ -9,9 +9,10 @@ from pyrogram.enums import UserStatus
 from CONFIG import TOKEN
 
 logger.add(
-    'logs/logs.log',
-    format='{time} {level} {message}',
-    level='DEBUG'
+    'logs/log.log',
+    format='{time:HH:mm:ss} {level} {message}',
+    level='DEBUG',
+    rotation='50 MB'
 )
 
 shelf = shelve.open('Database/cache')
@@ -25,6 +26,9 @@ def save_key_value(key: str, value: Any):
 
 @logger.catch
 def get_data_from_key(key: str) -> Any | bool:
+    """
+
+    """
     try:
         return shelf[key]
     except KeyError:
