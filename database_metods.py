@@ -39,6 +39,10 @@ class Database:
     def joined_a_group(self, table_name, group_id, group_name):
         self.create_admin_table(table_name=table_name)
         with self.lock:
+            self.cur.execute(f"SELECT * FROM table_{table_name} WHERE group_id=?", (group_id,))
+            result = self.cur.fetchone()
+            if result:
+                return True
             self.cur.execute(f'''
             INSERT INTO table_{table_name} (
             group_id, group_name,lock, message_text, message_photo_id,

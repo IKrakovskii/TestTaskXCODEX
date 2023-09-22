@@ -240,9 +240,13 @@ async def get_group_link(message: types.Message, state: FSMContext):
     except Exception as e:
         logger.error(e)
     if group_name is not None:
-        db.joined_a_group(table_name=message.from_user.id, group_id=chat_id, group_name=group_name)
-        await state.clear()
-        await message.answer('Группа добавлена, чтобы добавить сообщение, отправь мне команду /add')
+        r = db.joined_a_group(table_name=message.from_user.id, group_id=chat_id, group_name=group_name)
+        if r:
+            await state.clear()
+            await message.answer('Вы уже добавляли такую группу')
+        else:
+            await state.clear()
+            await message.answer('Группа добавлена, чтобы добавить сообщение, отправь мне команду /add')
     else:
         await state.set_state(FSM.get_group_name)
         await message.answer('Отправь мне название для группы')
