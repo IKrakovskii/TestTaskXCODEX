@@ -1,4 +1,6 @@
 import shelve
+import sqlite3
+import threading
 from typing import Any
 
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
@@ -45,3 +47,23 @@ continue_keyboard = ReplyKeyboardMarkup(
         resize_keyboard=True,
         one_time_keyboard=True
     )
+class Database:
+    def __init__(self):
+        self.conn = sqlite3.connect('Database/admins.sqlite3')
+        self.cur = self.conn.cursor()
+        self.lock = threading.Lock()
+        self.cur.execute("CREATE TABLE IF NOT EXISTS admins(admin_tg_user_id TEXT)")
+    def add_admin(self, admin_tg_user_id: str):
+        with self.lock:
+            self.cur.execute(f"INSERT INTO admins VALUES('{admin_tg_user_id}')")
+            self.conn.commit()
+    def delete_admin(self, admin_tg_user_id: str):
+        with self.lock:
+            self.cur.execute(f"DELETE FROM admins WHERE admin_tg_user_id = '{admin_tg_user_id}'")
+            self.conn.commit()
+    def get_admins(self):
+        with self.lock:
+            self.cur.execute("SELECT * FROM admins")
+            return self.cur.fetchall()
+
+        

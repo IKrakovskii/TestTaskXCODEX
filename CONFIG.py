@@ -1,8 +1,2 @@
-# TOKEN = 'токен бота'
-# ADMIN_TG_USER_ID можно указать двумя способами 'id админа' или ['id админа №1', 'id админа №2']
-# ADMIN_TG_USER_ID = 'id админа'
-# ADMIN_TG_USER_ID = ['id админа №1', 'id админа №2']
-# перед использованием убрать # у TOKEN и ADMIN_TG_USER_ID
-
-TOKEN = '6065207223:AAFCsFfn5dmQLallVX7mh826yLN3CfGVcEs'
-ADMIN_TG_USER_ID = ['351162658', '6386013639']
+TOKEN='6472526630:AAHJ5fgTRrn2JoV4zOUvNQIe4L_Bof-JsJk'
+SUPER_ADMINS = [''] # квадратные скобки не убирать!!! пример: ['12345'] или ['12345', '678910]
